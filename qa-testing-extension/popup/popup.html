@@ -12,15 +12,25 @@
     </header>
     
     <div class="section">
-      <h3>URLs to Test</h3>
-      <textarea 
-        id="urlList" 
-        placeholder="Enter URLs (one per line)&#10;https://example.com&#10;https://example.com/about"
-        rows="5"
-      ></textarea>
-      <div class="url-info">
-        <span class="url-count">URLs: <strong id="urlCount">0</strong></span>
-        <span class="url-limit">Max: 50</span>
+      <h3>Active Tab Testing</h3>
+      <div class="active-tab-info">
+        <div class="tab-url" id="activeTabUrl">Loading...</div>
+        <div class="view-mode-selector">
+          <label class="view-mode-label">Screenshot Mode:</label>
+          <div class="view-mode-buttons">
+            <input type="radio" id="desktopView" name="viewMode" value="desktop" checked>
+            <label for="desktopView" class="view-mode-option">
+              <span class="view-icon">💻</span>
+              Desktop
+            </label>
+            <input type="radio" id="mobileView" name="viewMode" value="mobile">
+            <label for="mobileView" class="view-mode-option">
+              <span class="view-icon">📱</span>
+              Mobile
+            </label>
+          </div>
+        </div>
+        <small>Select whether to capture screenshots in desktop or mobile view</small>
       </div>
     </div>
 
@@ -32,10 +42,6 @@
         <label class="checkbox-label">
           <input type="checkbox" id="fullScreenshots" checked>
           <span>Full-page Screenshots</span>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="mobileTablet" checked>
-          <span>Mobile/Tablet Testing</span>
         </label>
         <label class="checkbox-label">
           <input type="checkbox" id="spacingValidation" checked>

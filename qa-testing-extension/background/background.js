@@ -150,6 +150,29 @@ class QATestingBackground {
         // Clear active test
         await chrome.storage.local.remove(['activeTestId', 'activeTestConfig']);
         
+        // Store minimal results to avoid quota issues
+        try {
+          const results = orchestrator.getResults();
+          const minimalResults = {
+            ...results,
+            // Only keep first screenshot of each type for storage
+            screenshots: results.screenshots?.filter((s, i) => {
+              const isFirstDesktop = s.type === 'desktop' && !results.screenshots.slice(0, i).some(prev => prev.type === 'desktop');
+              const isFirstMobile = s.type === 'mobile' && !results.screenshots.slice(0, i).some(prev => prev.type === 'mobile');
+              return isFirstDesktop || isFirstMobile;
+            }).map(s => ({
+              ...s,
+              // Compress image data
+              data: s.data?.substring(0, 50000), // Keep only first 50KB
+              fullPageDataUrl: null,
+              segments: null
+            }))
+          };
+          await chrome.storage.local.set({ latestTestResults: minimalResults });
+        } catch (storageError) {
+          console.error('Failed to store results:', storageError);
+        }
+        
         // Clean up after a delay to allow result retrieval
         setTimeout(() => {
           this.activeTests.delete(testId);
@@ -257,98 +280,73 @@ class TestOrchestrator {
     };
 
     try {
-      // Create tab for testing
-      const tab = await chrome.tabs.create({ 
-        url: url, 
-        active: false 
-      });
-
+      // Get the active tab instead of creating a new one
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tab = activeTab;
+      
+      // Reload the page to ensure fresh state
+      await chrome.tabs.reload(tab.id);
+      
       try {
         // Wait for page to load
         await this.waitForPageLoad(tab.id);
         
         // PHASE 1: Screenshot capture first (if enabled)
-        // This runs BEFORE any viewport modifications
         console.log('Screenshot config check - fullScreenshots:', this.config.fullScreenshots);
+        console.log('View mode selected:', this.config.viewMode || 'desktop');
+        
         if (this.config.fullScreenshots) {
-          console.log('=== PHASE 1: Starting screenshot capture (desktop and mobile in parallel) ===');
+          console.log('=== PHASE 1: Starting screenshot capture ===');
           console.log('URL being captured:', url);
+          console.log('Capture mode:', this.config.viewMode || 'desktop');
           
-          const screenshotPromises = [];
+          let screenshotResult = null;
           
-          // Desktop screenshot promise
-          screenshotPromises.push(
-            this.captureScreenshot(tab.id, tab.windowId)
-              .then(result => {
-                urlResult.tests.screenshot = result;
-                if (result.success && result.data) {
-                  console.log('Desktop screenshot captured successfully');
-                  console.log('Desktop screenshot data structure:', {
-                    hasData: !!result.data,
-                    dataLength: result.data ? result.data.length : 0,
-                    hasSegments: !!result.segments,
-                    segmentCount: result.segments ? result.segments.length : 0,
-                    isStitched: result.stitched
-                  });
-                  
-                  this.results.screenshots.push({
-                    url: url,
-                    data: result.data, // This is the full page stitched image or first segment
-                    fullPageDataUrl: result.fullPageDataUrl, // Full page if stitched
-                    segments: result.segments, // Individual segments for fallback
-                    dimensions: result.dimensions,
-                    type: 'desktop',
-                    timestamp: Date.now(),
-                    stitched: result.stitched
-                  });
-                } else {
-                  console.error('Desktop screenshot failed:', result.error);
-                }
-              })
-              .catch(error => {
-                console.error('Desktop screenshot capture error:', error);
-                urlResult.tests.screenshot = { success: false, error: error.message };
-              })
-          );
+          if (this.config.viewMode === 'mobile') {
+            // Mobile screenshot only
+            console.log('Capturing mobile screenshot...');
+            screenshotResult = await this.captureMobileScreenshot(url);
+            urlResult.tests.screenshot = screenshotResult;
+            
+            if (screenshotResult.success && screenshotResult.data) {
+              console.log('Mobile screenshot captured successfully');
+              this.results.screenshots.push({
+                url: url,
+                data: screenshotResult.data,
+                fullPageDataUrl: screenshotResult.fullPageDataUrl,
+                segments: screenshotResult.segments,
+                dimensions: screenshotResult.dimensions,
+                type: 'mobile',
+                timestamp: Date.now(),
+                stitched: screenshotResult.stitched
+              });
+            } else {
+              console.error('Mobile screenshot failed:', screenshotResult.error);
+            }
+          } else {
+            // Desktop screenshot (default)
+            console.log('Capturing desktop screenshot...');
+            screenshotResult = await this.captureScreenshot(tab.id, tab.windowId);
+            urlResult.tests.screenshot = screenshotResult;
+            
+            if (screenshotResult.success && screenshotResult.data) {
+              console.log('Desktop screenshot captured successfully');
+              this.results.screenshots.push({
+                url: url,
+                data: screenshotResult.data,
+                fullPageDataUrl: screenshotResult.fullPageDataUrl,
+                segments: screenshotResult.segments,
+                dimensions: screenshotResult.dimensions,
+                type: 'desktop',
+                timestamp: Date.now(),
+                stitched: screenshotResult.stitched
+              });
+            } else {
+              console.error('Desktop screenshot failed:', screenshotResult.error);
+            }
+          }
           
-          // Mobile screenshot promise (runs in parallel in a separate tab)
-          screenshotPromises.push(
-            this.captureMobileScreenshot(url)
-              .then(mobileResult => {
-                urlResult.tests.mobileScreenshot = mobileResult;
-                if (mobileResult.success && mobileResult.data) {
-                  console.log('Mobile screenshot captured successfully');
-                  console.log('Mobile screenshot data structure:', {
-                    hasData: !!mobileResult.data,
-                    dataLength: mobileResult.data ? mobileResult.data.length : 0,
-                    hasSegments: !!mobileResult.segments,
-                    segmentCount: mobileResult.segments ? mobileResult.segments.length : 0,
-                    isStitched: mobileResult.stitched
-                  });
-                  
-                  this.results.screenshots.push({
-                    url: url,
-                    data: mobileResult.data, // Full page or first segment
-                    fullPageDataUrl: mobileResult.fullPageDataUrl,
-                    segments: mobileResult.segments,
-                    dimensions: mobileResult.dimensions,
-                    type: 'mobile',
-                    timestamp: Date.now(),
-                    stitched: mobileResult.stitched
-                  });
-                } else {
-                  console.error('Mobile screenshot failed:', mobileResult.error);
-                }
-              })
-              .catch(mobileError => {
-                console.error('Mobile screenshot capture error:', mobileError);
-                urlResult.tests.mobileScreenshot = { success: false, error: mobileError.message };
-              })
-          );
-          
-          // Wait for all screenshots to complete before moving to other tests
-          await Promise.allSettled(screenshotPromises);
-          console.log('=== PHASE 1 COMPLETE: All screenshots captured ===');
+          console.log('=== PHASE 1 COMPLETE: Screenshot captured ===');
         }
         
         // PHASE 2: Run other tests (after screenshots are done)
@@ -360,34 +358,15 @@ class TestOrchestrator {
           this.runPageAnalysis(tab.id, url, urlResult)
         );
         
-        // Mobile/Tablet testing (now safe to modify viewport after screenshots are done)
-        if (this.config.mobileTablet) {
-          console.log('Running responsive testing (viewport will be modified)');
-          otherTestPromises.push(
-            this.testResponsive(tab.id).then(result => {
-              urlResult.tests.responsive = result;
-              if (result.issues?.length > 0) {
-                urlResult.issues.push(...result.issues.map(issue => ({
-                  type: 'responsive',
-                  severity: 'medium',
-                  details: issue
-                })));
-              }
-            })
-          );
-        }
+        // Responsive testing is now handled by the view mode selection
         
         // Wait for all other tests to complete
         await Promise.allSettled(otherTestPromises);
         console.log('=== PHASE 2 COMPLETE: All tests finished ===');
         
       } finally {
-        // Always close the tab
-        try {
-          await chrome.tabs.remove(tab.id);
-        } catch (e) {
-          console.error('Failed to close tab:', e);
-        }
+        // Don't close the active tab, just restore it
+        // The user's tab remains open
       }
       
     } catch (error) {
@@ -421,7 +400,7 @@ class TestOrchestrator {
       const urlSeoData = this.results.seoData.find(s => s.url === url);
       
       console.log(`Found ${urlScreenshots.length} screenshots for URL ${url}`);
-      console.log('Screenshot types:', urlScreenshots.map(s => s.type));
+      console.log('Screenshot type:', urlScreenshots[0]?.type || 'none');
       
       // Generate visual report if screenshots exist
       if (urlScreenshots.length > 0) {
@@ -432,6 +411,15 @@ class TestOrchestrator {
         }
         this.results.aiReports[url].visual = visualReport;
         console.log('Visual report generated:', visualReport.error ? `Error: ${visualReport.error}` : 'Success');
+        
+        // Delete screenshot data after AI analysis to save memory
+        console.log('Clearing screenshot data to save memory...');
+        this.results.screenshots = this.results.screenshots.map(s => ({
+          ...s,
+          data: null,
+          fullPageDataUrl: null,
+          segments: null
+        }));
       } else {
         console.warn(`No screenshots found for ${url}, skipping visual AI analysis`);
         if (!this.results.aiReports[url]) {
@@ -483,7 +471,7 @@ class TestOrchestrator {
       await chrome.debugger.sendCommand({ tabId: mobileTab.id }, "Emulation.setDeviceMetricsOverride", {
         width: 390,
         height: 844,
-        deviceScaleFactor: 3,
+        deviceScaleFactor: 2,  // Reduced from 3 to 2 for better performance
         mobile: true,
         screenWidth: 390,
         screenHeight: 844,
@@ -498,12 +486,16 @@ class TestOrchestrator {
       
       console.log('Mobile emulation settings applied');
       
-      // Wait for viewport to settle and mobile styles to apply
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Force a page reload to ensure mobile styles are applied
+      await chrome.tabs.reload(mobileTab.id);
+      await this.waitForPageLoad(mobileTab.id);
       
-      // Now capture the mobile screenshot using the same scrolling logic
+      // Wait longer for viewport to settle and mobile styles to fully apply
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
+      // Now capture the mobile screenshot with special mobile scrolling logic
       console.log('Starting mobile screenshot capture with scrolling...');
-      const result = await this.captureScreenshot(mobileTab.id, mobileTab.windowId);
+      const result = await this.captureMobileScreenshotWithScroll(mobileTab.id, mobileTab.windowId);
       
       console.log('Mobile screenshot capture completed:', result.success ? 'Success' : 'Failed');
       
@@ -537,6 +529,144 @@ class TestOrchestrator {
           console.error('Failed to close mobile tab:', e);
         }
       }
+    }
+  }
+
+  async captureMobileScreenshotWithScroll(tabId, windowId) {
+    try {
+      console.log('=== MOBILE SCREENSHOT CAPTURE START ===');
+      
+      // Get mobile page dimensions
+      const [dimensionResult] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          // Force recalculation for mobile view
+          document.body.style.display = 'none';
+          document.body.offsetHeight; // Force reflow
+          document.body.style.display = '';
+          
+          return {
+            viewport: {
+              width: window.innerWidth,
+              height: window.innerHeight
+            },
+            document: {
+              width: Math.max(
+                document.documentElement.scrollWidth,
+                document.body.scrollWidth,
+                document.documentElement.offsetWidth
+              ),
+              height: Math.max(
+                document.documentElement.scrollHeight,
+                document.body.scrollHeight,
+                document.documentElement.offsetHeight
+              )
+            },
+            scrollPosition: {
+              x: window.scrollX,
+              y: window.scrollY
+            },
+            devicePixelRatio: window.devicePixelRatio || 1,
+            url: window.location.href
+          };
+        }
+      });
+
+      const dimensions = dimensionResult.result;
+      console.log('Mobile page dimensions:', dimensions);
+      
+      const viewportHeight = dimensions.viewport.height;
+      const totalHeight = dimensions.document.height;
+      
+      // If page fits in viewport, single capture
+      if (totalHeight <= viewportHeight) {
+        console.log('Mobile page fits in viewport, single capture');
+        const screenshot = await chrome.tabs.captureVisibleTab(windowId, {
+          format: 'png',
+          quality: 90
+        });
+        
+        return {
+          success: true,
+          data: screenshot,
+          fullPageDataUrl: screenshot,
+          segments: [{ dataUrl: screenshot, x: 0, y: 0, height: totalHeight, viewportHeight: viewportHeight, index: 0 }],
+          dimensions: dimensions,
+          timestamp: Date.now(),
+          stitched: false
+        };
+      }
+      
+      // Mobile scrolling with smaller increments
+      const screenshots = [];
+      const scrollIncrement = Math.floor(viewportHeight * 0.8); // 80% overlap for mobile
+      const maxCaptures = 15; // Allow more captures for mobile
+      
+      let currentY = 0;
+      let captureCount = 0;
+      
+      while (currentY < totalHeight && captureCount < maxCaptures) {
+        console.log(`Mobile scroll position ${captureCount + 1}: y=${currentY}`);
+        
+        // Scroll to position
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (y) => {
+            window.scrollTo(0, y);
+            // Force layout recalculation
+            document.body.offsetHeight;
+          },
+          args: [currentY]
+        });
+        
+        // Wait longer for mobile rendering
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Capture
+        const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
+          format: 'png',
+          quality: 90
+        });
+        
+        screenshots.push({
+          dataUrl: dataUrl,
+          x: 0,
+          y: currentY,
+          height: Math.min(viewportHeight, totalHeight - currentY),
+          viewportHeight: viewportHeight,
+          index: captureCount
+        });
+        
+        currentY += scrollIncrement;
+        captureCount++;
+      }
+      
+      console.log(`Mobile: Captured ${screenshots.length} segments`);
+      
+      // Restore scroll position
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (pos) => window.scrollTo(pos.x, pos.y),
+        args: [dimensions.scrollPosition]
+      });
+      
+      // Use first screenshot as main data (stitching often fails on mobile)
+      return {
+        success: true,
+        data: screenshots[0]?.dataUrl,
+        fullPageDataUrl: null, // Skip stitching for mobile
+        segments: screenshots,
+        dimensions: dimensions,
+        timestamp: Date.now(),
+        stitched: false
+      };
+      
+    } catch (error) {
+      console.error('Mobile screenshot capture error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
@@ -1414,9 +1544,10 @@ class TestOrchestrator {
       const content = [];
       
       // Add visual analysis prompt FIRST (as recommended by OpenRouter docs)
+      const viewType = urlScreenshots[0]?.type || 'desktop';
       content.push({
         type: 'text',
-        text: `You are given full-page screenshots of a webpage (desktop and mobile views). Your task is to carefully analyze the screenshots as if you are reviewing the UI/UX quality and accessibility of the site. Please provide a structured report in checkbox format for actionable tracking.
+        text: `You are given a full-page screenshot of a webpage (${viewType} view). Your task is to carefully analyze the screenshot as if you are reviewing the UI/UX quality and accessibility of the site. Please provide a structured report in checkbox format for actionable tracking.
 
 ## Visual & UI/UX Analysis Report for ${url}
 
@@ -1478,76 +1609,56 @@ Analyze and list critical issues as checkboxes:
 * Are paragraphs too long or too short?
 * Check for consistency in tone and clarity of messaging.
 
-### 8. Desktop vs Mobile Consistency
-* Compare the desktop and mobile screenshots provided.
-* Do repeated elements (headers, footers, buttons, forms) look consistent?
-* Are styles (colors, typography, spacing) uniform across both views?
+### 8. ${viewType === 'mobile' ? 'Mobile-Specific Issues' : 'Desktop Layout Optimization'}
+${viewType === 'mobile' ? 
+`* Identify any mobile-specific usability issues.
+* Check for touch target sizes (minimum 44x44px).
+* Verify that content is properly adapted for small screens.` :
+`* Evaluate the use of available screen space.
+* Check for proper responsive grid usage.
+* Identify areas that could benefit from better desktop optimization.`}
 
-### 9. Responsiveness Issues
-* Based on the mobile screenshot, identify any responsive design problems.
-* Check for elements that appear broken, overlapping, or poorly adapted.
-
-### 10. Specific Recommendations
+### 9. Specific Recommendations
 * Be specific and actionable in your feedback.
 * For example, instead of saying "spacing looks off", write "Increase padding between the hero text and button by at least 16px for better readability."
 * Provide exact measurements, color codes, or CSS values where applicable.
 
-Remember to analyze BOTH the desktop and mobile screenshots provided below.`
+Please analyze the ${viewType} screenshot provided below.`
       });
       
-      // Get exactly one desktop and one mobile screenshot for this URL
-      const desktopScreenshot = urlScreenshots.find(s => s.type === 'desktop');
-      const mobileScreenshot = urlScreenshots.find(s => s.type === 'mobile');
+      // Get the single screenshot for this URL
+      const screenshot = urlScreenshots[0];
       
-      let validScreenshotCount = 0;
-      
-      // Add desktop screenshot if available (prefer fullPageDataUrl for stitched images)
-      if (desktopScreenshot) {
-        const desktopImageData = desktopScreenshot.fullPageDataUrl || desktopScreenshot.data;
-        if (desktopImageData) {
-          validScreenshotCount++;
-          console.log('Adding desktop screenshot to API request (stitched:', !!desktopScreenshot.fullPageDataUrl, ')');
-          content.push({
-            type: 'image_url',
-            image_url: {
-              url: desktopImageData
-            }
-          });
-        } else {
-          console.warn('Desktop screenshot has no valid image data');
-        }
-      }
-      
-      // Add mobile screenshot if available (prefer fullPageDataUrl for stitched images)
-      if (mobileScreenshot) {
-        const mobileImageData = mobileScreenshot.fullPageDataUrl || mobileScreenshot.data;
-        if (mobileImageData) {
-          validScreenshotCount++;
-          console.log('Adding mobile screenshot to API request (stitched:', !!mobileScreenshot.fullPageDataUrl, ')');
-          content.push({
-            type: 'image_url',
-            image_url: {
-              url: mobileImageData
-            }
-          });
-        } else {
-          console.warn('Mobile screenshot has no valid image data');
-        }
-      }
-      
-      console.log(`Sending ${validScreenshotCount} full-page screenshots to AI for ${url} (desktop: ${!!desktopScreenshot}, mobile: ${!!mobileScreenshot})`);
-      
-      // If no valid screenshots, return early
-      if (validScreenshotCount === 0) {
-        console.error('No valid screenshots found for AI analysis');
+      if (!screenshot) {
+        console.error('No screenshot found for AI analysis');
         return {
-          error: 'No screenshots available for visual analysis',
+          error: 'No screenshot available for visual analysis',
           timestamp: Date.now(),
           url: url
         };
       }
       
-      console.log(`Found ${validScreenshotCount} valid screenshots for AI analysis`);
+      // Add screenshot to content (prefer fullPageDataUrl for stitched images)
+      const imageData = screenshot.fullPageDataUrl || screenshot.data;
+      
+      if (!imageData) {
+        console.error('Screenshot has no valid image data');
+        return {
+          error: 'Screenshot data is missing',
+          timestamp: Date.now(),
+          url: url
+        };
+      }
+      
+      console.log(`Adding ${screenshot.type} screenshot to API request (stitched: ${!!screenshot.fullPageDataUrl})`);
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: imageData
+        }
+      });
+      
+      console.log(`Sending ${screenshot.type} screenshot to AI for analysis`);
 
       // Make API call to OpenRouter
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

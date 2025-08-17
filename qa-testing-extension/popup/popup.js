@@ -4,6 +4,7 @@ class QATestingPopup {
     this.currentTestId = null;
     this.testResults = null;
     this.progressInterval = null;
+    this.activeTabUrl = null;
     
     this.init();
   }
@@ -12,14 +13,13 @@ class QATestingPopup {
     this.bindElements();
     this.bindEvents();
     await this.loadSavedSettings();
-    this.updateUrlCount();
+    await this.getActiveTab();
     await this.checkForActiveTest();
   }
 
   bindElements() {
     this.elements = {
-      urlList: document.getElementById('urlList'),
-      urlCount: document.getElementById('urlCount'),
+      activeTabUrl: document.getElementById('activeTabUrl'),
       apiKey: document.getElementById('apiKey'),
       modelName: document.getElementById('modelName'),
       apiKeyContainer: document.getElementById('apiKeyContainer'),
@@ -34,9 +34,12 @@ class QATestingPopup {
       errorSection: document.getElementById('errorSection'),
       errorMessage: document.getElementById('errorMessage'),
       
+      // View mode radio buttons
+      desktopView: document.getElementById('desktopView'),
+      mobileView: document.getElementById('mobileView'),
+      
       // Checkboxes
       fullScreenshots: document.getElementById('fullScreenshots'),
-      mobileTablet: document.getElementById('mobileTablet'),
       spacingValidation: document.getElementById('spacingValidation'),
       brokenLinks: document.getElementById('brokenLinks'),
       lighthouse: document.getElementById('lighthouse'),
@@ -54,9 +57,6 @@ class QATestingPopup {
   }
 
   bindEvents() {
-    // URL input
-    this.elements.urlList.addEventListener('input', () => this.updateUrlCount());
-    
     // Control buttons
     this.elements.startBtn.addEventListener('click', () => this.startTesting());
     this.elements.stopBtn.addEventListener('click', () => this.stopTesting());
@@ -81,38 +81,38 @@ class QATestingPopup {
     checkboxes.forEach(cb => {
       cb.addEventListener('change', () => this.saveSettings());
     });
-  }
-
-  updateUrlCount() {
-    const urls = this.getValidUrls();
-    this.elements.urlCount.textContent = urls.length;
     
-    // Change color if over limit
-    if (urls.length > 50) {
-      this.elements.urlCount.style.color = '#dc2626';
-    } else {
-      this.elements.urlCount.style.color = '#667eea';
-    }
+    // Save settings when view mode changes
+    this.elements.desktopView.addEventListener('change', () => this.saveSettings());
+    this.elements.mobileView.addEventListener('change', () => this.saveSettings());
   }
 
-  getValidUrls() {
-    const text = this.elements.urlList.value;
-    return text.split('\n')
-      .map(url => url.trim())
-      .filter(url => {
-        try {
-          const urlObj = new URL(url);
-          return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-        } catch {
-          return false;
+  async getActiveTab() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab && tab.url) {
+        // Check if it's a valid URL we can test
+        if (tab.url.startsWith('http://') || tab.url.startsWith('https://')) {
+          this.activeTabUrl = tab.url;
+          this.elements.activeTabUrl.textContent = tab.url;
+          this.elements.activeTabUrl.style.color = '#667eea';
+        } else {
+          this.activeTabUrl = null;
+          this.elements.activeTabUrl.textContent = 'Cannot test this page (not HTTP/HTTPS)';
+          this.elements.activeTabUrl.style.color = '#dc2626';
         }
-      });
+      }
+    } catch (error) {
+      console.error('Failed to get active tab:', error);
+      this.elements.activeTabUrl.textContent = 'Failed to get active tab';
+      this.elements.activeTabUrl.style.color = '#dc2626';
+    }
   }
 
   getTestConfig() {
     return {
+      viewMode: this.elements.desktopView.checked ? 'desktop' : 'mobile',
       fullScreenshots: this.elements.fullScreenshots.checked,
-      mobileTablet: this.elements.mobileTablet.checked,
       spacingValidation: this.elements.spacingValidation.checked,
       brokenLinks: this.elements.brokenLinks.checked,
       lighthouse: this.elements.lighthouse.checked,
@@ -123,16 +123,12 @@ class QATestingPopup {
   }
 
   async startTesting() {
-    const urls = this.getValidUrls();
+    // Get the current active tab again to ensure it's still valid
+    await this.getActiveTab();
     
-    // Validate URLs
-    if (urls.length === 0) {
-      this.showError('Please enter at least one valid URL');
-      return;
-    }
-    
-    if (urls.length > 50) {
-      this.showError('Maximum 50 URLs allowed per test');
+    // Validate active tab
+    if (!this.activeTabUrl) {
+      this.showError('Cannot test this page. Please navigate to an HTTP/HTTPS website.');
       return;
     }
     
@@ -166,7 +162,7 @@ class QATestingPopup {
       // Send message to background script to start testing
       const response = await chrome.runtime.sendMessage({
         action: 'startTesting',
-        urls: urls,
+        urls: [this.activeTabUrl],  // Send as array for compatibility
         config: config
       });
       
@@ -266,7 +262,7 @@ class QATestingPopup {
     
     // Update results summary
     if (results) {
-      this.elements.urlsTested.textContent = results.urls?.length || 0;
+      this.elements.urlsTested.textContent = '1';  // Always 1 for active tab
       this.elements.issuesFound.textContent = results.totalIssues || 0;
       this.elements.screenshotCount.textContent = results.screenshots?.length || 0;
     }
@@ -305,10 +301,34 @@ class QATestingPopup {
   async viewReport() {
     if (!this.testResults) return;
     
-    // Store results for the report page
-    await chrome.storage.local.set({ 
-      latestTestResults: this.testResults 
-    });
+    // Store results without screenshot data to avoid quota issues
+    // Screenshots are only needed during testing, not for viewing reports
+    const resultsForStorage = {
+      ...this.testResults,
+      screenshots: this.testResults.screenshots?.map(s => ({
+        url: s.url,
+        type: s.type,
+        dimensions: s.dimensions,
+        timestamp: s.timestamp,
+        // Don't store actual image data
+      }))
+    };
+    
+    try {
+      await chrome.storage.local.set({ 
+        latestTestResults: resultsForStorage
+      });
+    } catch (error) {
+      console.error('Failed to store results:', error);
+      // If still fails, store without any screenshot info
+      const minimalResults = {
+        ...this.testResults,
+        screenshots: []
+      };
+      await chrome.storage.local.set({ 
+        latestTestResults: minimalResults 
+      });
+    }
     
     // Open results page in new tab
     const url = chrome.runtime.getURL('results/results.html');
@@ -334,8 +354,8 @@ class QATestingPopup {
 
   async saveSettings() {
     const settings = {
-      testConfig: this.getTestConfig(),
-      urls: this.elements.urlList.value
+      testConfig: this.getTestConfig()
+      // No URLs to save anymore
     };
     
     await chrome.storage.local.set({ qaTestSettings: settings });
@@ -346,12 +366,6 @@ class QATestingPopup {
       const data = await chrome.storage.local.get(['qaTestSettings', 'openrouterApiKey', 'openrouterModel']);
       
       if (data.qaTestSettings) {
-        // Load URLs
-        if (data.qaTestSettings.urls) {
-          this.elements.urlList.value = data.qaTestSettings.urls;
-          this.updateUrlCount();
-        }
-        
         // Load test config
         if (data.qaTestSettings.testConfig) {
           const config = data.qaTestSettings.testConfig;

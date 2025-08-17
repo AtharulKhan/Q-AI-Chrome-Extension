@@ -21,8 +21,8 @@ class ResultsPage {
 
   async loadResults() {
     try {
-      // Get results from storage
-      const data = await chrome.storage.local.get('latestTestResults');
+      // Get results from storage (using local storage for higher quota)
+      const data = await chrome.storage.local.get(['latestTestResults']);
       this.testResults = data.latestTestResults;
       
       if (!this.testResults) {
@@ -129,39 +129,12 @@ class ResultsPage {
   }
   
   renderUrlTabs() {
-    const urls = this.testResults.urls;
+    // Hide URL tabs since we're only testing one URL at a time
+    this.elements.urlTabs.style.display = 'none';
     
-    // Only show URL tabs if multiple URLs were tested
-    if (urls && urls.length > 1) {
-      this.elements.urlTabs.style.display = 'flex';
-      this.elements.urlTabs.innerHTML = '';
-      
-      // Add "All URLs" tab
-      const allTab = document.createElement('button');
-      allTab.className = 'url-tab active';
-      allTab.innerHTML = '<span class="url-tab-icon">🌐</span> All URLs';
-      allTab.addEventListener('click', () => {
-        this.currentUrl = null;
-        this.updateUrlTabs();
-        this.refreshReports();
-      });
-      this.elements.urlTabs.appendChild(allTab);
-      
-      // Add individual URL tabs
-      urls.forEach(urlResult => {
-        const urlTab = document.createElement('button');
-        urlTab.className = 'url-tab';
-        const urlDomain = new URL(urlResult.url).hostname;
-        urlTab.innerHTML = `<span class="url-tab-icon">📄</span> ${urlDomain}`;
-        urlTab.addEventListener('click', () => {
-          this.currentUrl = urlResult.url;
-          this.updateUrlTabs();
-          this.refreshReports();
-        });
-        this.elements.urlTabs.appendChild(urlTab);
-      });
-    } else {
-      this.elements.urlTabs.style.display = 'none';
+    // Set the current URL to the single tested URL
+    if (this.testResults.urls && this.testResults.urls.length > 0) {
+      this.currentUrl = this.testResults.urls[0].url;
     }
   }
   
@@ -192,25 +165,21 @@ class ResultsPage {
   renderOverview() {
     if (!this.elements.overviewContent) return;
     
-    if (this.currentUrl) {
-      // Show overview for specific URL
-      const urlResult = this.testResults.urls.find(u => u.url === this.currentUrl);
-      if (urlResult) {
-        this.elements.overviewContent.innerHTML = `
-          <h3>${this.currentUrl}</h3>
-          <div class="overview-stats">
-            <div>Issues Found: ${urlResult.issues.length}</div>
-            <div>Tests Run: ${Object.keys(urlResult.tests || {}).length}</div>
-          </div>
-        `;
-      }
-    } else {
-      // Show overall overview
+    // Always show overview for the single URL tested
+    const urlResult = this.testResults.urls && this.testResults.urls[0];
+    if (urlResult) {
       this.elements.overviewContent.innerHTML = `
+        <h3>${urlResult.url}</h3>
         <div class="overview-stats">
-          <div>Total URLs Tested: ${this.testResults.urls?.length || 0}</div>
-          <div>Total Issues Found: ${this.testResults.totalIssues || 0}</div>
-          <div>Total Screenshots: ${this.testResults.screenshots?.length || 0}</div>
+          <div>Issues Found: ${urlResult.issues.length}</div>
+          <div>Tests Run: ${Object.keys(urlResult.tests || {}).length}</div>
+          <div>Screenshots Captured: ${this.testResults.screenshots?.length || 0}</div>
+        </div>
+      `;
+    } else {
+      this.elements.overviewContent.innerHTML = `
+        <div class="error-message">
+          <p>No test data available</p>
         </div>
       `;
     }
@@ -219,7 +188,7 @@ class ResultsPage {
   renderSummary() {
     const { urls, totalIssues, screenshots, duration } = this.testResults;
     
-    this.elements.urlCount.textContent = urls?.length || 0;
+    this.elements.urlCount.textContent = '1';  // Always 1 URL for active tab testing
     this.elements.issueCount.textContent = totalIssues || 0;
     this.elements.screenshotCount.textContent = screenshots?.length || 0;
     
@@ -298,23 +267,11 @@ class ResultsPage {
     
     let visualReport = null;
     
-    if (this.currentUrl && this.testResults.aiReports?.[this.currentUrl]) {
-      // Show report for specific URL
-      visualReport = this.testResults.aiReports[this.currentUrl].visual;
-    } else if (!this.currentUrl && this.testResults.aiReports) {
-      // Show combined reports for all URLs
-      const allReports = Object.entries(this.testResults.aiReports)
-        .map(([url, reports]) => {
-          if (reports.visual && !reports.visual.error) {
-            return `## ${url}\n\n${reports.visual.content}`;
-          }
-          return null;
-        })
-        .filter(Boolean);
-      
-      if (allReports.length > 0) {
-        visualReport = { content: allReports.join('\n\n---\n\n') };
-      }
+    // Get the single URL that was tested
+    const testedUrl = this.testResults.urls && this.testResults.urls[0]?.url;
+    
+    if (testedUrl && this.testResults.aiReports?.[testedUrl]) {
+      visualReport = this.testResults.aiReports[testedUrl].visual;
     }
     
     if (!visualReport || visualReport.error) {
@@ -339,23 +296,11 @@ class ResultsPage {
     
     let technicalReport = null;
     
-    if (this.currentUrl && this.testResults.aiReports?.[this.currentUrl]) {
-      // Show report for specific URL
-      technicalReport = this.testResults.aiReports[this.currentUrl].technical;
-    } else if (!this.currentUrl && this.testResults.aiReports) {
-      // Show combined reports for all URLs
-      const allReports = Object.entries(this.testResults.aiReports)
-        .map(([url, reports]) => {
-          if (reports.technical && !reports.technical.error) {
-            return `## ${url}\n\n${reports.technical.content}`;
-          }
-          return null;
-        })
-        .filter(Boolean);
-      
-      if (allReports.length > 0) {
-        technicalReport = { content: allReports.join('\n\n---\n\n') };
-      }
+    // Get the single URL that was tested
+    const testedUrl = this.testResults.urls && this.testResults.urls[0]?.url;
+    
+    if (testedUrl && this.testResults.aiReports?.[testedUrl]) {
+      technicalReport = this.testResults.aiReports[testedUrl].technical;
     }
     
     if (!technicalReport || technicalReport.error) {
@@ -508,12 +453,8 @@ class ResultsPage {
 
 
   renderScreenshots() {
+    // Show all screenshots since we're only testing one URL
     let screenshots = this.testResults.screenshots || [];
-    
-    // Filter screenshots by current URL if selected
-    if (this.currentUrl) {
-      screenshots = screenshots.filter(s => s.url === this.currentUrl);
-    }
     
     if (screenshots.length === 0) {
       this.elements.screenshotsGrid.innerHTML = `
@@ -524,79 +465,35 @@ class ResultsPage {
       return;
     }
     
-    const screenshotsHTML = screenshots.map((screenshot, index) => {
-      // Handle new screenshot format
-      let imageUrl = null;
-      
-      // Primary data field contains the full page image or first segment
-      if (screenshot.data && typeof screenshot.data === 'string') {
-        imageUrl = screenshot.data;
-      } 
-      // Fallback to fullPageDataUrl if available
-      else if (screenshot.fullPageDataUrl) {
-        imageUrl = screenshot.fullPageDataUrl;
-      }
-      // Fallback to first segment if available
-      else if (screenshot.segments && screenshot.segments.length > 0) {
-        imageUrl = screenshot.segments[0].dataUrl;
-      }
-      
-      if (!imageUrl) {
-        console.warn('No image URL found for screenshot:', screenshot);
-        return '';
-      }
-      
-      const type = screenshot.type || 'desktop';
-      const dimensions = screenshot.dimensions || {};
-      const width = dimensions.document?.width || 'Unknown';
-      const height = dimensions.document?.height || 'Unknown';
-      
-      return `
-        <div class="screenshot-item" data-index="${index}">
-          <img class="screenshot-image" src="${imageUrl}" alt="${type} screenshot ${index + 1}">
-          <div class="screenshot-info">
-            <div class="screenshot-url">${screenshot.url}</div>
-            <div class="screenshot-meta">
-              <span class="screenshot-type">${type}</span>
-              <span class="screenshot-dimensions">${width}x${height}px</span>
-              ${screenshot.stitched ? '<span class="screenshot-badge">Full Page</span>' : ''}
-            </div>
-          </div>
+    // Screenshots no longer contain image data after AI analysis
+    this.elements.screenshotsGrid.innerHTML = `
+      <div class="screenshots-info">
+        <h3>Screenshot Information</h3>
+        <p>Screenshots were captured and analyzed by AI. Image data has been removed to save storage.</p>
+        <div class="screenshot-metadata">
+          ${screenshots.map(screenshot => {
+            const type = screenshot.type || 'desktop';
+            const dimensions = screenshot.dimensions || {};
+            const width = dimensions.document?.width || 'Unknown';
+            const height = dimensions.document?.height || 'Unknown';
+            
+            return `
+              <div class="screenshot-meta-item">
+                <strong>${type.charAt(0).toUpperCase() + type.slice(1)} View:</strong>
+                <span>${width} × ${height}px</span>
+                <span class="screenshot-timestamp">Captured at ${new Date(screenshot.timestamp).toLocaleTimeString()}</span>
+              </div>
+            `;
+          }).join('')}
         </div>
-      `;
-    }).join('');
-    
-    this.elements.screenshotsGrid.innerHTML = screenshotsHTML;
-    
-    // Add click handlers for modal
-    document.querySelectorAll('.screenshot-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const index = parseInt(item.dataset.index);
-        this.showScreenshot(screenshots[index]);
-      });
-    });
+        <p class="screenshot-note">View the Visual Analysis tab to see the AI's analysis of the captured screenshots.</p>
+      </div>
+    `;
   }
 
   showScreenshot(screenshot) {
-    // Get the image URL based on new data structure
-    let imageUrl = null;
-    
-    if (screenshot.data && typeof screenshot.data === 'string') {
-      imageUrl = screenshot.data;
-    } else if (screenshot.fullPageDataUrl) {
-      imageUrl = screenshot.fullPageDataUrl;
-    } else if (screenshot.segments && screenshot.segments.length > 0) {
-      imageUrl = screenshot.segments[0].dataUrl;
-    }
-    
-    if (!imageUrl) {
-      console.error('No image URL found for screenshot modal:', screenshot);
-      return;
-    }
-    
-    this.elements.modalImage.src = imageUrl;
-    this.elements.modalCaption.textContent = `${screenshot.url} (${screenshot.type || 'desktop'})`;
-    this.elements.modal.classList.add('show');
+    // Screenshots no longer have image data after AI analysis
+    console.log('Screenshot preview not available - image data has been removed to save storage');
   }
 
   closeModal() {
