@@ -1,0 +1,436 @@
+class QATestingPopup {
+  constructor() {
+    this.isRunning = false;
+    this.currentTestId = null;
+    this.testResults = null;
+    this.progressInterval = null;
+    
+    this.init();
+  }
+
+  async init() {
+    this.bindElements();
+    this.bindEvents();
+    await this.loadSavedSettings();
+    this.updateUrlCount();
+    await this.checkForActiveTest();
+  }
+
+  bindElements() {
+    this.elements = {
+      urlList: document.getElementById('urlList'),
+      urlCount: document.getElementById('urlCount'),
+      apiKey: document.getElementById('apiKey'),
+      modelName: document.getElementById('modelName'),
+      apiKeyContainer: document.getElementById('apiKeyContainer'),
+      startBtn: document.getElementById('startTest'),
+      stopBtn: document.getElementById('stopTest'),
+      progressSection: document.getElementById('progressSection'),
+      progressStatus: document.getElementById('progressStatus'),
+      progressPercent: document.getElementById('progressPercent'),
+      progressFill: document.getElementById('progressFill'),
+      currentUrl: document.getElementById('currentUrl'),
+      resultsSection: document.getElementById('resultsSection'),
+      errorSection: document.getElementById('errorSection'),
+      errorMessage: document.getElementById('errorMessage'),
+      
+      // Checkboxes
+      fullScreenshots: document.getElementById('fullScreenshots'),
+      mobileTablet: document.getElementById('mobileTablet'),
+      spacingValidation: document.getElementById('spacingValidation'),
+      brokenLinks: document.getElementById('brokenLinks'),
+      lighthouse: document.getElementById('lighthouse'),
+      seoCheck: document.getElementById('seoCheck'),
+      accessibility: document.getElementById('accessibility'),
+      aiAnalysis: document.getElementById('aiAnalysis'),
+      
+      // Results
+      urlsTested: document.getElementById('urlsTested'),
+      issuesFound: document.getElementById('issuesFound'),
+      screenshotCount: document.getElementById('screenshotCount'),
+      viewReportBtn: document.getElementById('viewReport'),
+      exportBtn: document.getElementById('exportResults')
+    };
+  }
+
+  bindEvents() {
+    // URL input
+    this.elements.urlList.addEventListener('input', () => this.updateUrlCount());
+    
+    // Control buttons
+    this.elements.startBtn.addEventListener('click', () => this.startTesting());
+    this.elements.stopBtn.addEventListener('click', () => this.stopTesting());
+    
+    // AI Analysis checkbox
+    this.elements.aiAnalysis.addEventListener('change', (e) => {
+      this.elements.apiKeyContainer.classList.toggle('hidden', !e.target.checked);
+    });
+    
+    // API Key save
+    this.elements.apiKey.addEventListener('blur', () => this.saveApiKey());
+    
+    // Model name save
+    this.elements.modelName.addEventListener('blur', () => this.saveModelName());
+    
+    // Results actions
+    this.elements.viewReportBtn?.addEventListener('click', () => this.viewReport());
+    this.elements.exportBtn?.addEventListener('click', () => this.exportResults());
+    
+    // Save settings on change
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', () => this.saveSettings());
+    });
+  }
+
+  updateUrlCount() {
+    const urls = this.getValidUrls();
+    this.elements.urlCount.textContent = urls.length;
+    
+    // Change color if over limit
+    if (urls.length > 50) {
+      this.elements.urlCount.style.color = '#dc2626';
+    } else {
+      this.elements.urlCount.style.color = '#667eea';
+    }
+  }
+
+  getValidUrls() {
+    const text = this.elements.urlList.value;
+    return text.split('\n')
+      .map(url => url.trim())
+      .filter(url => {
+        try {
+          const urlObj = new URL(url);
+          return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      });
+  }
+
+  getTestConfig() {
+    return {
+      fullScreenshots: this.elements.fullScreenshots.checked,
+      mobileTablet: this.elements.mobileTablet.checked,
+      spacingValidation: this.elements.spacingValidation.checked,
+      brokenLinks: this.elements.brokenLinks.checked,
+      lighthouse: this.elements.lighthouse.checked,
+      seoCheck: this.elements.seoCheck.checked,
+      accessibility: this.elements.accessibility.checked,
+      aiAnalysis: this.elements.aiAnalysis.checked
+    };
+  }
+
+  async startTesting() {
+    const urls = this.getValidUrls();
+    
+    // Validate URLs
+    if (urls.length === 0) {
+      this.showError('Please enter at least one valid URL');
+      return;
+    }
+    
+    if (urls.length > 50) {
+      this.showError('Maximum 50 URLs allowed per test');
+      return;
+    }
+    
+    // Validate API key if AI analysis is enabled
+    const config = this.getTestConfig();
+    if (config.aiAnalysis) {
+      const apiKey = this.elements.apiKey.value.trim();
+      if (!apiKey) {
+        this.showError('Please enter your OpenRouter API key for AI analysis');
+        this.elements.apiKey.focus();
+        return;
+      }
+      
+      const modelName = this.elements.modelName.value.trim() || 'google/gemini-2.0-flash-exp:free';
+      
+      // Save API key and model
+      await chrome.storage.local.set({ 
+        openrouterApiKey: apiKey,
+        openrouterModel: modelName
+      });
+    }
+    
+    // Update UI
+    this.isRunning = true;
+    this.updateUI();
+    
+    // Reset results
+    this.testResults = null;
+    
+    try {
+      // Send message to background script to start testing
+      const response = await chrome.runtime.sendMessage({
+        action: 'startTesting',
+        urls: urls,
+        config: config
+      });
+      
+      if (response.success) {
+        this.currentTestId = response.testId;
+        this.startProgressMonitoring();
+      } else {
+        throw new Error(response.error || 'Failed to start testing');
+      }
+      
+    } catch (error) {
+      console.error('Failed to start testing:', error);
+      this.showError(error.message);
+      this.isRunning = false;
+      this.updateUI();
+    }
+  }
+
+  async stopTesting() {
+    if (this.currentTestId) {
+      try {
+        await chrome.runtime.sendMessage({
+          action: 'stopTesting',
+          testId: this.currentTestId
+        });
+      } catch (error) {
+        console.error('Failed to stop testing:', error);
+      }
+    }
+    
+    this.isRunning = false;
+    this.currentTestId = null;
+    this.stopProgressMonitoring();
+    this.updateUI();
+  }
+
+  startProgressMonitoring() {
+    this.elements.progressSection.classList.add('active');
+    
+    const checkProgress = async () => {
+      if (!this.isRunning || !this.currentTestId) {
+        this.stopProgressMonitoring();
+        return;
+      }
+      
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'getProgress',
+          testId: this.currentTestId
+        });
+        
+        if (response.success && response.progress) {
+          this.updateProgress(response.progress);
+          
+          if (response.progress.completed) {
+            this.onTestingComplete(response.results);
+          }
+        }
+      } catch (error) {
+        console.error('Progress check error:', error);
+      }
+    };
+    
+    // Check immediately
+    checkProgress();
+    
+    // Then check every second
+    this.progressInterval = setInterval(checkProgress, 1000);
+  }
+
+  stopProgressMonitoring() {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+    this.elements.progressSection.classList.remove('active');
+  }
+
+  updateProgress(progress) {
+    const { current, total, currentUrl, status } = progress;
+    const percent = Math.round((current / total) * 100);
+    
+    this.elements.progressStatus.textContent = status || 'Processing...';
+    this.elements.progressPercent.textContent = `${percent}%`;
+    this.elements.progressFill.style.width = `${percent}%`;
+    
+    if (currentUrl) {
+      this.elements.currentUrl.textContent = currentUrl;
+    }
+  }
+
+  onTestingComplete(results) {
+    this.isRunning = false;
+    this.currentTestId = null;
+    this.testResults = results;
+    this.stopProgressMonitoring();
+    
+    // Update results summary
+    if (results) {
+      this.elements.urlsTested.textContent = results.urls?.length || 0;
+      this.elements.issuesFound.textContent = results.totalIssues || 0;
+      this.elements.screenshotCount.textContent = results.screenshots?.length || 0;
+    }
+    
+    this.updateUI();
+  }
+
+  updateUI() {
+    // Control buttons
+    this.elements.startBtn.disabled = this.isRunning;
+    this.elements.stopBtn.disabled = !this.isRunning;
+    
+    // Sections
+    this.elements.progressSection.style.display = this.isRunning ? 'block' : 'none';
+    this.elements.resultsSection.style.display = 
+      (!this.isRunning && this.testResults) ? 'block' : 'none';
+    
+    // Hide error when starting
+    if (this.isRunning) {
+      this.hideError();
+    }
+  }
+
+  showError(message) {
+    this.elements.errorMessage.textContent = message;
+    this.elements.errorSection.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => this.hideError(), 5000);
+  }
+
+  hideError() {
+    this.elements.errorSection.style.display = 'none';
+  }
+
+  async viewReport() {
+    if (!this.testResults) return;
+    
+    // Store results for the report page
+    await chrome.storage.local.set({ 
+      latestTestResults: this.testResults 
+    });
+    
+    // Open results page in new tab
+    const url = chrome.runtime.getURL('results/results.html');
+    chrome.tabs.create({ url });
+  }
+
+  async exportResults() {
+    if (!this.testResults) return;
+    
+    // Create JSON export
+    const dataStr = JSON.stringify(this.testResults, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    // Create download link
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `qa-test-results-${Date.now()}.json`;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+  }
+
+  async saveSettings() {
+    const settings = {
+      testConfig: this.getTestConfig(),
+      urls: this.elements.urlList.value
+    };
+    
+    await chrome.storage.local.set({ qaTestSettings: settings });
+  }
+
+  async loadSavedSettings() {
+    try {
+      const data = await chrome.storage.local.get(['qaTestSettings', 'openrouterApiKey', 'openrouterModel']);
+      
+      if (data.qaTestSettings) {
+        // Load URLs
+        if (data.qaTestSettings.urls) {
+          this.elements.urlList.value = data.qaTestSettings.urls;
+          this.updateUrlCount();
+        }
+        
+        // Load test config
+        if (data.qaTestSettings.testConfig) {
+          const config = data.qaTestSettings.testConfig;
+          Object.keys(config).forEach(key => {
+            if (this.elements[key]) {
+              this.elements[key].checked = config[key];
+            }
+          });
+        }
+      }
+      
+      // Load API key
+      if (data.openrouterApiKey) {
+        this.elements.apiKey.value = data.openrouterApiKey;
+      }
+      
+      // Load model name
+      if (data.openrouterModel) {
+        this.elements.modelName.value = data.openrouterModel;
+      }
+      
+      // Update API key container visibility
+      this.elements.apiKeyContainer.classList.toggle(
+        'hidden', 
+        !this.elements.aiAnalysis.checked
+      );
+      
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }
+
+  async saveApiKey() {
+    const apiKey = this.elements.apiKey.value.trim();
+    if (apiKey) {
+      await chrome.storage.local.set({ openrouterApiKey: apiKey });
+    }
+  }
+  
+  async saveModelName() {
+    const modelName = this.elements.modelName.value.trim();
+    if (modelName) {
+      await chrome.storage.local.set({ openrouterModel: modelName });
+    }
+  }
+
+  async checkForActiveTest() {
+    try {
+      // Check if there's an active test
+      const response = await chrome.runtime.sendMessage({
+        action: 'checkActiveTest'
+      });
+      
+      if (response.success && response.hasActiveTest) {
+        // Restore active test state
+        this.isRunning = true;
+        this.currentTestId = response.testId;
+        this.updateUI();
+        
+        // Restore progress monitoring
+        this.startProgressMonitoring();
+        
+        // Update progress immediately
+        if (response.progress) {
+          this.updateProgress(response.progress);
+        }
+        
+      } else if (response.success && response.completed && response.results) {
+        // Test completed while popup was closed
+        this.onTestingComplete(response.results);
+      }
+      
+    } catch (error) {
+      console.error('Error checking for active test:', error);
+    }
+  }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  new QATestingPopup();
+});

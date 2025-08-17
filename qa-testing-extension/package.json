@@ -1,0 +1,39 @@
+{
+  "name": "qa-testing-suite",
+  "version": "1.0.0",
+  "description": "Comprehensive Chrome extension for website QA testing with AI-powered analysis",
+  "main": "background/background.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"No tests configured\"",
+    "build": "echo \"Extension ready for loading in Chrome\"",
+    "generate-icons": "open assets/icons/icon-generator.html",
+    "package": "zip -r qa-testing-suite.zip . -x '*.git*' -x 'node_modules/*' -x '.DS_Store' -x '*.zip'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "qa-testing",
+    "accessibility",
+    "wcag",
+    "seo",
+    "performance",
+    "website-testing",
+    "ai-analysis",
+    "openrouter"
+  ],
+  "author": "QA Testing Suite Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/qa-testing-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/qa-testing-extension/issues"
+  },
+  "homepage": "https://github.com/yourusername/qa-testing-extension#readme",
+  "engines": {
+    "chrome": ">=88"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}

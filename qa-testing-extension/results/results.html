@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA Testing Results</title>
+  <link rel="stylesheet" href="results.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-content">
+        <h1>QA Testing Results</h1>
+        <div class="header-actions">
+          <button id="exportMarkdown" class="btn btn-primary">
+            <span class="icon">📝</span>
+            Export Markdown
+          </button>
+          <button id="exportJSON" class="btn btn-secondary">
+            <span class="icon">💾</span>
+            Export JSON
+          </button>
+          <button id="exportPDF" class="btn btn-secondary">
+            <span class="icon">📄</span>
+            Export PDF
+          </button>
+          <button id="newTest" class="btn btn-outline">
+            <span class="icon">🔄</span>
+            New Test
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="summary-section">
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-icon">🌐</div>
+          <div class="card-content">
+            <div class="card-value" id="urlCount">0</div>
+            <div class="card-label">URLs Tested</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">⚠️</div>
+          <div class="card-content">
+            <div class="card-value" id="issueCount">0</div>
+            <div class="card-label">Issues Found</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">📸</div>
+          <div class="card-content">
+            <div class="card-value" id="screenshotCount">0</div>
+            <div class="card-label">Screenshots</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">⏱️</div>
+          <div class="card-content">
+            <div class="card-value" id="testDuration">0s</div>
+            <div class="card-label">Test Duration</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="score-section">
+        <div class="overall-score">
+          <div class="score-circle" id="overallScore">
+            <svg viewBox="0 0 36 36" class="circular-chart">
+              <path class="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path class="circle" id="scoreCircle"
+                stroke-dasharray="0, 100"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <text x="18" y="20.35" class="percentage" id="scoreText">0</text>
+            </svg>
+          </div>
+          <div class="score-label">Overall Score</div>
+        </div>
+
+        <div class="score-breakdown">
+          <div class="score-item">
+            <span class="score-metric">Accessibility</span>
+            <div class="score-bar">
+              <div class="score-fill" id="accessibilityScore" style="width: 0%"></div>
+            </div>
+            <span class="score-value" id="accessibilityValue">0</span>
+          </div>
+          <div class="score-item">
+            <span class="score-metric">Performance</span>
+            <div class="score-bar">
+              <div class="score-fill" id="performanceScore" style="width: 0%"></div>
+            </div>
+            <span class="score-value" id="performanceValue">0</span>
+          </div>
+          <div class="score-item">
+            <span class="score-metric">SEO</span>
+            <div class="score-bar">
+              <div class="score-fill" id="seoScore" style="width: 0%"></div>
+            </div>
+            <span class="score-value" id="seoValue">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- URL Tabs (shown when multiple URLs tested) -->
+    <div id="urlTabs" class="url-tabs" style="display: none;">
+      <!-- URL tabs will be dynamically added here -->
+    </div>
+    
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">
+        <span class="tab-icon">📊</span>
+        Overview
+      </button>
+      <button class="tab" data-tab="visual-report">
+        <span class="tab-icon">🎨</span>
+        Visual Analysis
+      </button>
+      <button class="tab" data-tab="technical-report">
+        <span class="tab-icon">🔧</span>
+        Technical SEO
+      </button>
+      <button class="tab" data-tab="issues">
+        <span class="tab-icon">⚠️</span>
+        Issues
+        <span class="tab-badge" id="issuesBadge">0</span>
+      </button>
+      <button class="tab" data-tab="screenshots">
+        <span class="tab-icon">📸</span>
+        Screenshots
+      </button>
+      <button class="tab" data-tab="details">
+        <span class="tab-icon">📊</span>
+        Detailed Results
+      </button>
+      <button class="tab" data-tab="raw">
+        <span class="tab-icon">{ }</span>
+        Raw Data
+      </button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Overview Tab -->
+      <div id="overview" class="tab-pane active">
+        <div class="overview-container">
+          <h2>Test Overview</h2>
+          <div id="overviewContent">
+            <!-- Overview content will be populated here -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Visual Analysis Tab -->
+      <div id="visual-report" class="tab-pane">
+        <div class="ai-report-container">
+          <div class="ai-report-header">
+            <h2>Visual & UI/UX Analysis</h2>
+            <button id="copyVisualReport" class="btn btn-small">
+              <span class="icon">📋</span>
+              Copy to Clipboard
+            </button>
+          </div>
+          <div id="visualReportContent" class="markdown-content">
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>Loading visual analysis...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical SEO Tab -->
+      <div id="technical-report" class="tab-pane">
+        <div class="ai-report-container">
+          <div class="ai-report-header">
+            <h2>Technical SEO Analysis</h2>
+            <button id="copyTechnicalReport" class="btn btn-small">
+              <span class="icon">📋</span>
+              Copy to Clipboard
+            </button>
+          </div>
+          <div id="technicalReportContent" class="markdown-content">
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>Loading technical analysis...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Issues Tab -->
+      <div id="issues" class="tab-pane">
+        <div class="issues-container">
+          <div class="issues-filters">
+            <select id="severityFilter" class="filter-select">
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select id="typeFilter" class="filter-select">
+              <option value="all">All Types</option>
+              <option value="accessibility">Accessibility</option>
+              <option value="performance">Performance</option>
+              <option value="seo">SEO</option>
+              <option value="broken_link">Broken Links</option>
+              <option value="layout">Layout</option>
+            </select>
+            <input type="text" id="searchFilter" class="filter-search" placeholder="Search issues...">
+          </div>
+          <div id="issuesList" class="issues-list">
+            <!-- Issues will be populated here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Screenshots Tab -->
+      <div id="screenshots" class="tab-pane">
+        <div class="screenshots-container">
+          <div class="screenshots-grid" id="screenshotsGrid">
+            <!-- Screenshots will be populated here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Results Tab -->
+      <div id="details" class="tab-pane">
+        <div class="details-container">
+          <div class="url-results" id="urlResults">
+            <!-- URL-by-URL results will be populated here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Raw Data Tab -->
+      <div id="raw" class="tab-pane">
+        <div class="raw-data-container">
+          <pre id="rawDataContent"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screenshot Modal -->
+  <div id="screenshotModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <img id="modalImage" src="" alt="Screenshot">
+      <div class="modal-caption" id="modalCaption"></div>
+    </div>
+  </div>
+
+  <script src="results.js"></script>
+</body>
+</html>

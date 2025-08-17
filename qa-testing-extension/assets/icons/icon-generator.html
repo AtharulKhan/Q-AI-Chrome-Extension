@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator for QA Testing Suite</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    .canvas-container {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .icon-box {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    canvas {
+      display: block;
+      margin: 10px 0;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>QA Testing Suite Icons</h1>
+  <div class="canvas-container">
+    <div class="icon-box">
+      <h3>16x16</h3>
+      <canvas id="icon16" width="16" height="16"></canvas>
+      <a id="download16" download="icon16.png">Download</a>
+    </div>
+    <div class="icon-box">
+      <h3>48x48</h3>
+      <canvas id="icon48" width="48" height="48"></canvas>
+      <a id="download48" download="icon48.png">Download</a>
+    </div>
+    <div class="icon-box">
+      <h3>128x128</h3>
+      <canvas id="icon128" width="128" height="128"></canvas>
+      <a id="download128" download="icon128.png">Download</a>
+    </div>
+  </div>
+  <button onclick="generateIcons()">Generate Icons</button>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, size, size);
+      
+      // Create gradient background
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      
+      // Draw rounded rectangle background
+      const radius = size * 0.2;
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw QA text or symbol
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      if (size >= 48) {
+        // For larger icons, draw "QA"
+        ctx.font = `bold ${size * 0.4}px Arial`;
+        ctx.fillText('QA', size / 2, size / 2 - size * 0.05);
+        
+        // Add checkmark below
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = size * 0.06;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(size * 0.25, size * 0.65);
+        ctx.lineTo(size * 0.45, size * 0.8);
+        ctx.lineTo(size * 0.75, size * 0.5);
+        ctx.stroke();
+      } else {
+        // For 16x16, just draw a checkmark
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(4, 8);
+        ctx.lineTo(7, 11);
+        ctx.lineTo(12, 6);
+        ctx.stroke();
+      }
+    }
+    
+    function generateIcons() {
+      // Generate all three sizes
+      const sizes = [16, 48, 128];
+      
+      sizes.forEach(size => {
+        const canvas = document.getElementById(`icon${size}`);
+        drawIcon(canvas, size);
+        
+        // Create download link
+        canvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          document.getElementById(`download${size}`).href = url;
+        });
+      });
+    }
+    
+    // Generate icons on load
+    window.onload = generateIcons;
+  </script>
+</body>
+</html>

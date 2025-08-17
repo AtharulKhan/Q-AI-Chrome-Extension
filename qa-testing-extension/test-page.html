@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Test page for QA Testing Suite Chrome Extension">
+  <title>QA Testing Suite - Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      background: #f5f6fa;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #667eea;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #34495e;
+      margin-top: 30px;
+    }
+    .issue-example {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .broken-link {
+      color: #dc3545;
+      text-decoration: underline;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    .no-alt {
+      border: 2px solid #dc3545;
+    }
+    .staging-url {
+      background: #f8d7da;
+      padding: 5px;
+    }
+    form {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    input, textarea {
+      display: block;
+      margin: 10px 0;
+      padding: 8px;
+      width: 100%;
+      max-width: 300px;
+    }
+    .low-contrast {
+      color: #d0d0d0;
+      background: #e0e0e0;
+      padding: 10px;
+    }
+    .overlap-container {
+      position: relative;
+      height: 100px;
+    }
+    .overlap-element {
+      position: absolute;
+      background: rgba(102, 126, 234, 0.5);
+      padding: 10px;
+    }
+    #missing-h1-section {
+      /* Intentionally missing H1 */
+    }
+    .responsive-issue {
+      width: 2000px;
+      background: #ffeaa7;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>QA Testing Suite - Test Page</h1>
+    <p>This page contains intentional issues to test the QA Testing Suite Chrome Extension.</p>
+
+    <h2>SEO Issues</h2>
+    <div class="issue-example">
+      <p>This page has an intentionally short meta description and missing Open Graph tags.</p>
+    </div>
+
+    <h2>Broken Links</h2>
+    <div class="issue-example">
+      <p>These links will return 404 errors:</p>
+      <a href="/non-existent-page.html" class="broken-link">Broken Internal Link</a><br>
+      <a href="https://example.com/404-page" class="broken-link">Broken External Link</a><br>
+      <a href="#non-existent-anchor">Broken Anchor Link</a>
+    </div>
+
+    <h2>Staging URLs</h2>
+    <div class="issue-example staging-url">
+      <p>These are staging/development URLs that shouldn't be in production:</p>
+      <a href="https://staging.example.com">Staging Server Link</a><br>
+      <a href="http://localhost:3000/api">Localhost API</a><br>
+      <img src="https://dev.example.com/image.jpg" alt="Dev server image">
+    </div>
+
+    <h2>Accessibility Issues</h2>
+    
+    <h3>Missing Alt Text</h3>
+    <div class="issue-example">
+      <img src="data:image/svg+xml,%3Csvg width='200' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='100' fill='%23667eea'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white'%3ENo Alt Text%3C/text%3E%3C/svg%3E" class="no-alt">
+    </div>
+
+    <h3>Form Without Labels</h3>
+    <div class="issue-example">
+      <form>
+        <input type="text" placeholder="Name (no label)">
+        <input type="email" placeholder="Email (no label)">
+        <textarea placeholder="Message (no label)"></textarea>
+      </form>
+    </div>
+
+    <h3>Low Contrast Text</h3>
+    <div class="issue-example low-contrast">
+      This text has very poor contrast and will be difficult to read for many users.
+    </div>
+
+    <h2>Heading Hierarchy Issues</h2>
+    <div id="missing-h1-section" class="issue-example">
+      <h3>This H3 appears without an H2</h3>
+      <h5>And this H5 appears without an H4</h5>
+    </div>
+
+    <h2>Layout Issues</h2>
+    
+    <h3>Overlapping Elements</h3>
+    <div class="issue-example overlap-container">
+      <div class="overlap-element" style="top: 10px; left: 10px;">Element 1</div>
+      <div class="overlap-element" style="top: 20px; left: 20px;">Element 2 (Overlapping)</div>
+    </div>
+
+    <h3>Horizontal Scroll Issue</h3>
+    <div class="issue-example" style="overflow-x: auto;">
+      <div class="responsive-issue">
+        This element is too wide and causes horizontal scrolling on mobile devices.
+      </div>
+    </div>
+
+    <h2>Performance Issues</h2>
+    <div class="issue-example">
+      <p>This page includes:</p>
+      <ul>
+        <li>No lazy loading on images</li>
+        <li>Inline styles throughout</li>
+        <li>No structured data</li>
+        <li>Missing canonical URL</li>
+      </ul>
+    </div>
+
+    <h2>Valid Content</h2>
+    <p>This section has proper structure and should pass most tests:</p>
+    <img src="data:image/svg+xml,%3Csvg width='200' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='100' fill='%2310b981'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white'%3EProper Alt Text%3C/text%3E%3C/svg%3E" alt="A green rectangle with white text demonstrating proper alt text usage">
+    
+    <form>
+      <label for="proper-name">Name:</label>
+      <input type="text" id="proper-name" name="name" required>
+      
+      <label for="proper-email">Email:</label>
+      <input type="email" id="proper-email" name="email" required>
+    </form>
+
+    <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <p><small>Test page for QA Testing Suite Chrome Extension. This page intentionally contains issues for testing purposes.</small></p>
+    </footer>
+  </div>
+
+  <script>
+    // Intentional console error for testing
+    console.error('TEST ERROR: This is an intentional error for testing the QA suite');
+    
+    // Some basic JavaScript that could affect performance
+    window.addEventListener('load', function() {
+      console.log('Page loaded - QA Testing Suite test page ready');
+    });
+  </script>
+</body>
+</html>

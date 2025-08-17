@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>QA Testing Suite</h1>
+      <div class="version">v1.0.0</div>
+    </header>
+    
+    <div class="section">
+      <h3>URLs to Test</h3>
+      <textarea 
+        id="urlList" 
+        placeholder="Enter URLs (one per line)&#10;https://example.com&#10;https://example.com/about"
+        rows="5"
+      ></textarea>
+      <div class="url-info">
+        <span class="url-count">URLs: <strong id="urlCount">0</strong></span>
+        <span class="url-limit">Max: 50</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Test Configuration</h3>
+      
+      <div class="config-group">
+        <h4>Visual Testing</h4>
+        <label class="checkbox-label">
+          <input type="checkbox" id="fullScreenshots" checked>
+          <span>Full-page Screenshots</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="mobileTablet" checked>
+          <span>Mobile/Tablet Testing</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="spacingValidation" checked>
+          <span>Layout/Spacing Validation</span>
+        </label>
+      </div>
+
+      <div class="config-group">
+        <h4>Technical Testing</h4>
+        <label class="checkbox-label">
+          <input type="checkbox" id="brokenLinks" checked>
+          <span>Broken Link Detection</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="lighthouse" checked>
+          <span>Performance Metrics</span>
+        </label>
+      </div>
+
+      <div class="config-group">
+        <h4>Content & SEO</h4>
+        <label class="checkbox-label">
+          <input type="checkbox" id="seoCheck" checked>
+          <span>SEO Analysis</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="accessibility" checked>
+          <span>AODA Accessibility</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section ai-section">
+      <h3>AI Analysis</h3>
+      <label class="checkbox-label">
+        <input type="checkbox" id="aiAnalysis" checked>
+        <span>Generate AI Report</span>
+      </label>
+      <div class="api-key-container" id="apiKeyContainer">
+        <label for="apiKey">OpenRouter API Key:</label>
+        <input 
+          type="password" 
+          id="apiKey" 
+          placeholder="sk-or-v1-..."
+          autocomplete="off"
+        >
+        <small>Your key is stored locally and securely</small>
+        
+        <label for="modelName" style="margin-top: 10px;">AI Model:</label>
+        <input 
+          type="text" 
+          id="modelName" 
+          placeholder="google/gemini-2.0-flash-exp:free"
+          value="google/gemini-2.0-flash-exp:free"
+          autocomplete="off"
+          title="Enter any OpenRouter model name"
+        >
+        <small>Enter any OpenRouter model name (e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet)</small>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startTest" class="btn btn-primary">
+        <span class="btn-icon">▶</span>
+        Start Testing
+      </button>
+      <button id="stopTest" class="btn btn-secondary" disabled>
+        <span class="btn-icon">◼</span>
+        Stop
+      </button>
+    </div>
+
+    <div id="progressSection" class="progress-section" style="display: none;">
+      <div class="progress-header">
+        <span id="progressStatus">Initializing...</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <div id="currentUrl" class="current-url"></div>
+    </div>
+
+    <div id="resultsSection" class="results-section" style="display: none;">
+      <h3>Test Complete!</h3>
+      <div class="results-summary">
+        <div class="result-card">
+          <div class="result-value" id="urlsTested">0</div>
+          <div class="result-label">URLs Tested</div>
+        </div>
+        <div class="result-card">
+          <div class="result-value" id="issuesFound">0</div>
+          <div class="result-label">Issues Found</div>
+        </div>
+        <div class="result-card">
+          <div class="result-value" id="screenshotCount">0</div>
+          <div class="result-label">Screenshots</div>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button id="viewReport" class="btn btn-primary">View Report</button>
+        <button id="exportResults" class="btn btn-secondary">Export</button>
+      </div>
+    </div>
+
+    <div id="errorSection" class="error-section" style="display: none;">
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
