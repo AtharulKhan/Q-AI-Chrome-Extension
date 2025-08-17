@@ -301,33 +301,42 @@ class QATestingPopup {
   async viewReport() {
     if (!this.testResults) return;
     
-    // Store results without screenshot data to avoid quota issues
-    // Screenshots are only needed during testing, not for viewing reports
-    const resultsForStorage = {
-      ...this.testResults,
-      screenshots: this.testResults.screenshots?.map(s => ({
-        url: s.url,
-        type: s.type,
-        dimensions: s.dimensions,
-        timestamp: s.timestamp,
-        // Don't store actual image data
-      }))
-    };
-    
     try {
+      // Try to store with screenshots first
       await chrome.storage.local.set({ 
-        latestTestResults: resultsForStorage
+        latestTestResults: this.testResults
       });
     } catch (error) {
-      console.error('Failed to store results:', error);
-      // If still fails, store without any screenshot info
-      const minimalResults = {
-        ...this.testResults,
-        screenshots: []
-      };
-      await chrome.storage.local.set({ 
-        latestTestResults: minimalResults 
-      });
+      console.error('Failed to store results with screenshots:', error);
+      
+      // If storage fails, try compressing screenshots
+      try {
+        const compressedResults = {
+          ...this.testResults,
+          screenshots: this.testResults.screenshots?.map(s => ({
+            ...s,
+            // Keep only the most important data
+            data: s.fullPageDataUrl || s.data ? (s.fullPageDataUrl || s.data).substring(0, 500000) : null,
+            fullPageDataUrl: null,
+            segments: null
+          }))
+        };
+        
+        await chrome.storage.local.set({ 
+          latestTestResults: compressedResults
+        });
+      } catch (compressionError) {
+        console.error('Failed even with compression:', compressionError);
+        
+        // Last resort: store without screenshots
+        const minimalResults = {
+          ...this.testResults,
+          screenshots: []
+        };
+        await chrome.storage.local.set({ 
+          latestTestResults: minimalResults 
+        });
+      }
     }
     
     // Open results page in new tab

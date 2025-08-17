@@ -10,7 +10,8 @@
     "scripting",
     "webNavigation",
     "debugger",
-    "offscreen"
+    "offscreen",
+    "alarms"
   ],
   "host_permissions": [
     "http://*/*",

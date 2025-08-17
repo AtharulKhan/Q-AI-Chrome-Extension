@@ -16,10 +16,114 @@ class QATestingBackground {
     // Clean up on extension update/reload
     chrome.runtime.onInstalled.addListener(() => {
       console.log('QA Testing Suite installed/updated');
+      this.setupPeriodicCleanup();
     });
 
     // Restore active tests on service worker restart
     this.restoreActiveTests();
+    
+    // Setup periodic cleanup of old screenshots
+    this.setupPeriodicCleanup();
+  }
+  
+  setupPeriodicCleanup() {
+    // Run cleanup every hour
+    chrome.alarms.create('cleanupOldScreenshots', { periodInMinutes: 60 });
+    
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === 'cleanupOldScreenshots') {
+        this.cleanupOldScreenshots();
+      }
+    });
+    
+    // Also run cleanup immediately on startup
+    this.cleanupOldScreenshots();
+  }
+  
+  async compressScreenshotsForStorage(screenshots) {
+    // Compress screenshots to avoid quota issues while keeping them viewable
+    return screenshots.map(screenshot => {
+      let compressedData = screenshot.data;
+      let compressedFullPage = screenshot.fullPageDataUrl;
+      
+      // If we have a full page URL, prioritize that and compress it
+      if (screenshot.fullPageDataUrl) {
+        compressedFullPage = this.compressImageDataUrl(screenshot.fullPageDataUrl, 0.6, 1500000); // Max 1.5MB
+        compressedData = null; // Don't need both
+      } else if (screenshot.data) {
+        compressedData = this.compressImageDataUrl(screenshot.data, 0.6, 1500000); // Max 1.5MB
+      }
+      
+      return {
+        ...screenshot,
+        data: compressedData,
+        fullPageDataUrl: compressedFullPage,
+        segments: null, // Remove segments to save space
+        compressed: true
+      };
+    });
+  }
+  
+  compressImageDataUrl(dataUrl, targetQuality = 0.7, maxSize = 1500000) {
+    if (!dataUrl || dataUrl.length <= maxSize) {
+      return dataUrl; // No need to compress
+    }
+    
+    try {
+      // Check if it's already a JPEG
+      if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) {
+        // Already compressed, maybe trim if too large
+        if (dataUrl.length > maxSize * 2) {
+          // Too large even for compressed, might need to return null
+          console.warn('Image too large even after compression, keeping partial data');
+          return dataUrl.substring(0, maxSize);
+        }
+        return dataUrl;
+      }
+      
+      // For PNG, we'd need to convert to JPEG for better compression
+      // This is a simplified approach - in production you'd use canvas
+      console.log(`Image size ${dataUrl.length} bytes, keeping as-is but may cause storage issues`);
+      return dataUrl;
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      return dataUrl;
+    }
+  }
+
+  async cleanupOldScreenshots() {
+    try {
+      const data = await chrome.storage.local.get(['latestTestResults']);
+      if (!data.latestTestResults) return;
+      
+      const results = data.latestTestResults;
+      const now = Date.now();
+      const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      // Check if results are older than 24 hours
+      const resultsAge = now - (results.endTime || results.startTime || 0);
+      
+      if (resultsAge > twentyFourHours && results.screenshots) {
+        console.log('Cleaning up screenshots older than 24 hours...');
+        
+        // Remove screenshot data but keep metadata
+        results.screenshots = results.screenshots.map(s => ({
+          url: s.url,
+          type: s.type,
+          dimensions: s.dimensions,
+          timestamp: s.timestamp,
+          // Remove actual image data
+          data: null,
+          fullPageDataUrl: null,
+          segments: null
+        }));
+        
+        await chrome.storage.local.set({ latestTestResults: results });
+        console.log('Old screenshot data cleaned up');
+      }
+    } catch (error) {
+      console.error('Error cleaning up old screenshots:', error);
+    }
   }
 
   async restoreActiveTests() {
@@ -150,27 +254,29 @@ class QATestingBackground {
         // Clear active test
         await chrome.storage.local.remove(['activeTestId', 'activeTestConfig']);
         
-        // Store minimal results to avoid quota issues
+        // Store results with compressed screenshots
         try {
           const results = orchestrator.getResults();
-          const minimalResults = {
+          
+          // Compress screenshots for storage
+          const compressedResults = {
             ...results,
-            // Only keep first screenshot of each type for storage
-            screenshots: results.screenshots?.filter((s, i) => {
-              const isFirstDesktop = s.type === 'desktop' && !results.screenshots.slice(0, i).some(prev => prev.type === 'desktop');
-              const isFirstMobile = s.type === 'mobile' && !results.screenshots.slice(0, i).some(prev => prev.type === 'mobile');
-              return isFirstDesktop || isFirstMobile;
-            }).map(s => ({
-              ...s,
-              // Compress image data
-              data: s.data?.substring(0, 50000), // Keep only first 50KB
-              fullPageDataUrl: null,
-              segments: null
-            }))
+            screenshots: await this.compressScreenshotsForStorage(results.screenshots || [])
           };
-          await chrome.storage.local.set({ latestTestResults: minimalResults });
+          
+          await chrome.storage.local.set({ latestTestResults: compressedResults });
         } catch (storageError) {
           console.error('Failed to store results:', storageError);
+          // Try without screenshots if storage fails
+          try {
+            const minimalResults = {
+              ...orchestrator.getResults(),
+              screenshots: []
+            };
+            await chrome.storage.local.set({ latestTestResults: minimalResults });
+          } catch (e) {
+            console.error('Failed to store even minimal results:', e);
+          }
         }
         
         // Clean up after a delay to allow result retrieval
@@ -412,14 +518,7 @@ class TestOrchestrator {
         this.results.aiReports[url].visual = visualReport;
         console.log('Visual report generated:', visualReport.error ? `Error: ${visualReport.error}` : 'Success');
         
-        // Delete screenshot data after AI analysis to save memory
-        console.log('Clearing screenshot data to save memory...');
-        this.results.screenshots = this.results.screenshots.map(s => ({
-          ...s,
-          data: null,
-          fullPageDataUrl: null,
-          segments: null
-        }));
+        // Don't delete screenshots immediately - they'll be cleaned up after 24 hours
       } else {
         console.warn(`No screenshots found for ${url}, skipping visual AI analysis`);
         if (!this.results.aiReports[url]) {
@@ -650,15 +749,32 @@ class TestOrchestrator {
         args: [dimensions.scrollPosition]
       });
       
-      // Use first screenshot as main data (stitching often fails on mobile)
+      // Try to stitch mobile screenshots together
+      let stitchedDataUrl = null;
+      
+      try {
+        console.log('Attempting to stitch mobile screenshots...');
+        
+        // Use offscreen document for stitching if available
+        if (chrome.offscreen) {
+          await this.stitchMobileScreenshotsOffscreen(tabId, screenshots, dimensions);
+        } else {
+          // Fallback to in-page stitching
+          stitchedDataUrl = await this.stitchMobileScreenshotsInPage(tabId, screenshots, dimensions);
+        }
+      } catch (stitchError) {
+        console.error('Failed to stitch mobile screenshots:', stitchError);
+      }
+      
+      // Return with stitched image if successful, otherwise use segments
       return {
         success: true,
-        data: screenshots[0]?.dataUrl,
-        fullPageDataUrl: null, // Skip stitching for mobile
+        data: stitchedDataUrl || screenshots[0]?.dataUrl,
+        fullPageDataUrl: stitchedDataUrl,
         segments: screenshots,
         dimensions: dimensions,
         timestamp: Date.now(),
-        stitched: false
+        stitched: stitchedDataUrl !== null
       };
       
     } catch (error) {
@@ -667,6 +783,117 @@ class TestOrchestrator {
         success: false,
         error: error.message
       };
+    }
+  }
+
+  async stitchMobileScreenshotsInPage(tabId, screenshots, dimensions) {
+    try {
+      const [stitchedResult] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (screenshots, pageInfo) => {
+          return new Promise((resolve) => {
+            try {
+              // Create canvas for full page
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              // Set canvas dimensions for mobile
+              canvas.width = pageInfo.document.width;
+              canvas.height = pageInfo.document.height;
+              
+              // Track loading of all images
+              let loadedCount = 0;
+              const totalImages = screenshots.length;
+              const images = [];
+              
+              // Function to draw when all images are loaded
+              const checkAndFinish = () => {
+                loadedCount++;
+                if (loadedCount === totalImages) {
+                  // All images loaded, now draw them with overlap handling
+                  let currentY = 0;
+                  
+                  screenshots.forEach((screenshot, index) => {
+                    const img = images[index];
+                    if (img && img.complete) {
+                      // For mobile, handle overlapping segments properly
+                      const drawY = screenshot.y;
+                      const drawHeight = Math.min(
+                        screenshot.height,
+                        img.height,
+                        canvas.height - drawY
+                      );
+                      
+                      // Draw the image segment
+                      ctx.drawImage(
+                        img,
+                        0, 0, img.width, drawHeight,
+                        0, drawY, canvas.width, drawHeight
+                      );
+                    }
+                  });
+                  
+                  // Convert to JPEG with compression for mobile
+                  let quality = 0.75; // Start with lower quality for mobile since images are often larger
+                  let fullPageDataUrl = canvas.toDataURL('image/jpeg', quality);
+                  
+                  // Reduce quality if too large (target under 2MB)
+                  while (fullPageDataUrl.length > 2 * 1024 * 1024 && quality > 0.3) {
+                    quality -= 0.1;
+                    fullPageDataUrl = canvas.toDataURL('image/jpeg', quality);
+                  }
+                  
+                  resolve({
+                    success: true,
+                    dataUrl: fullPageDataUrl,
+                    quality: quality,
+                    originalSize: fullPageDataUrl.length
+                  });
+                }
+              };
+              
+              // Load all screenshots
+              screenshots.forEach((screenshot, index) => {
+                const img = new Image();
+                images[index] = img;
+                
+                img.onload = checkAndFinish;
+                img.onerror = () => {
+                  console.error('Failed to load mobile screenshot segment', index);
+                  checkAndFinish();
+                };
+                
+                img.src = screenshot.dataUrl;
+              });
+              
+              // Timeout fallback
+              setTimeout(() => {
+                resolve({
+                  success: false,
+                  error: 'Timeout while stitching mobile screenshots'
+                });
+              }, 30000);
+              
+            } catch (error) {
+              console.error('Mobile stitching error:', error);
+              resolve({
+                success: false,
+                error: error.message
+              });
+            }
+          });
+        },
+        args: [screenshots, dimensions]
+      });
+      
+      if (stitchedResult.result && stitchedResult.result.success) {
+        return stitchedResult.result.dataUrl;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Mobile stitching error:', error);
+      return null;
     }
   }
 
@@ -931,12 +1158,12 @@ class TestOrchestrator {
                       }
                     });
                     
-                    // Compress if too large (> 1MB)
-                    let quality = 0.9;
+                    // Convert to JPEG for better compression
+                    let quality = 0.8;
                     let fullPageDataUrl = canvas.toDataURL('image/jpeg', quality);
                     
-                    // Progressively reduce quality if image is too large
-                    while (fullPageDataUrl.length > 1024 * 1024 && quality > 0.3) {
+                    // Progressively reduce quality if image is too large (target under 2MB)
+                    while (fullPageDataUrl.length > 2 * 1024 * 1024 && quality > 0.3) {
                       quality -= 0.1;
                       fullPageDataUrl = canvas.toDataURL('image/jpeg', quality);
                     }

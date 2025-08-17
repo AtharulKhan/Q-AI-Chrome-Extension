@@ -465,35 +465,86 @@ class ResultsPage {
       return;
     }
     
-    // Screenshots no longer contain image data after AI analysis
-    this.elements.screenshotsGrid.innerHTML = `
-      <div class="screenshots-info">
-        <h3>Screenshot Information</h3>
-        <p>Screenshots were captured and analyzed by AI. Image data has been removed to save storage.</p>
-        <div class="screenshot-metadata">
-          ${screenshots.map(screenshot => {
-            const type = screenshot.type || 'desktop';
-            const dimensions = screenshot.dimensions || {};
-            const width = dimensions.document?.width || 'Unknown';
-            const height = dimensions.document?.height || 'Unknown';
-            
-            return `
-              <div class="screenshot-meta-item">
-                <strong>${type.charAt(0).toUpperCase() + type.slice(1)} View:</strong>
-                <span>${width} × ${height}px</span>
-                <span class="screenshot-timestamp">Captured at ${new Date(screenshot.timestamp).toLocaleTimeString()}</span>
+    // Check if screenshots still have image data (within 24 hours)
+    const hasImageData = screenshots.some(s => s.data || s.fullPageDataUrl);
+    
+    if (hasImageData) {
+      // Screenshots still available, show them
+      const screenshotsHTML = screenshots.map((screenshot, index) => {
+        let imageUrl = screenshot.fullPageDataUrl || screenshot.data;
+        
+        if (!imageUrl) {
+          return ''; // Skip if no image data
+        }
+        
+        const type = screenshot.type || 'desktop';
+        const dimensions = screenshot.dimensions || {};
+        const width = dimensions.document?.width || 'Unknown';
+        const height = dimensions.document?.height || 'Unknown';
+        
+        return `
+          <div class="screenshot-item" data-index="${index}">
+            <img class="screenshot-image" src="${imageUrl}" alt="${type} screenshot">
+            <div class="screenshot-info">
+              <div class="screenshot-url">${screenshot.url}</div>
+              <div class="screenshot-meta">
+                <span class="screenshot-type">${type}</span>
+                <span class="screenshot-dimensions">${width}×${height}px</span>
+                ${screenshot.stitched ? '<span class="screenshot-badge">Full Page</span>' : ''}
               </div>
-            `;
-          }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      this.elements.screenshotsGrid.innerHTML = screenshotsHTML || '<p>Screenshots are being processed...</p>';
+      
+      // Add click handlers for modal
+      document.querySelectorAll('.screenshot-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const index = parseInt(item.dataset.index);
+          this.showScreenshot(screenshots[index]);
+        });
+      });
+    } else {
+      // Screenshots removed after 24 hours
+      this.elements.screenshotsGrid.innerHTML = `
+        <div class="screenshots-info">
+          <h3>Screenshot Information</h3>
+          <p>Screenshots were captured and analyzed. Image data has been automatically removed after 24 hours to save storage.</p>
+          <div class="screenshot-metadata">
+            ${screenshots.map(screenshot => {
+              const type = screenshot.type || 'desktop';
+              const dimensions = screenshot.dimensions || {};
+              const width = dimensions.document?.width || 'Unknown';
+              const height = dimensions.document?.height || 'Unknown';
+              
+              return `
+                <div class="screenshot-meta-item">
+                  <strong>${type.charAt(0).toUpperCase() + type.slice(1)} View:</strong>
+                  <span>${width} × ${height}px</span>
+                  <span class="screenshot-timestamp">Captured at ${new Date(screenshot.timestamp).toLocaleTimeString()}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <p class="screenshot-note">View the Visual Analysis tab to see the AI's analysis of the captured screenshots.</p>
         </div>
-        <p class="screenshot-note">View the Visual Analysis tab to see the AI's analysis of the captured screenshots.</p>
-      </div>
-    `;
+      `;
+    }
   }
 
   showScreenshot(screenshot) {
-    // Screenshots no longer have image data after AI analysis
-    console.log('Screenshot preview not available - image data has been removed to save storage');
+    const imageUrl = screenshot.fullPageDataUrl || screenshot.data;
+    
+    if (!imageUrl) {
+      console.log('Screenshot preview not available - image data has been removed after 24 hours');
+      return;
+    }
+    
+    this.elements.modalImage.src = imageUrl;
+    this.elements.modalCaption.textContent = `${screenshot.url} (${screenshot.type || 'desktop'})`;
+    this.elements.modal.classList.add('show');
   }
 
   closeModal() {
