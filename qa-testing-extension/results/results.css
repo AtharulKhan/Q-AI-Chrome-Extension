@@ -853,3 +853,177 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Checkbox Styles */
+.checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.checkbox-item:hover {
+  background-color: rgba(103, 126, 234, 0.05);
+}
+
+.report-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid #cbd5e0;
+  border-radius: 4px;
+  margin-right: 12px;
+  margin-top: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.report-checkbox:checked {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.report-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.report-checkbox:hover {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.checkbox-label {
+  cursor: pointer;
+  flex: 1;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.checkbox-label.checked {
+  text-decoration: line-through;
+  opacity: 0.6;
+  color: #718096;
+}
+
+/* Priority Icons */
+.priority-icon {
+  font-size: 14px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.priority-icon.critical {
+  color: #dc2626;
+}
+
+.priority-icon.high {
+  color: #ea580c;
+}
+
+.priority-icon.medium {
+  color: #d97706;
+}
+
+.priority-icon.low {
+  color: #10b981;
+}
+
+/* Enhanced markdown content styling for reports */
+.markdown-content h2 {
+  margin-top: 32px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  color: #2d3748;
+}
+
+.markdown-content h3 {
+  margin-top: 24px;
+  margin-bottom: 12px;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.markdown-content h3 em {
+  font-style: normal;
+  color: #718096;
+  font-size: 0.9em;
+  font-weight: normal;
+}
+
+.markdown-content ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-content > ul > li {
+  margin: 8px 0;
+  padding-left: 24px;
+  position: relative;
+}
+
+.markdown-content > ul > li::before {
+  content: '•';
+  position: absolute;
+  left: 8px;
+  color: #667eea;
+}
+
+.markdown-content code {
+  background-color: #f7fafc;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: #e53e3e;
+}
+
+.markdown-content pre {
+  background-color: #2d3748;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* Print styles */
+@media print {
+  .header-actions,
+  .tabs,
+  .modal {
+    display: none !important;
+  }
+  
+  .container {
+    max-width: 100%;
+  }
+  
+  .tab-pane {
+    display: block !important;
+    page-break-after: always;
+  }
+  
+  .checkbox-item {
+    break-inside: avoid;
+  }
+}

@@ -1407,56 +1407,60 @@ class TestOrchestrator {
       // Add visual analysis prompt
       content.push({
         type: 'text',
-        text: `You are given full-page screenshots of a webpage. Your task is to carefully analyze the screenshots as if you are reviewing the UI/UX quality and accessibility of the site. Please provide a structured report covering the following areas:
+        text: `You are a senior UI/UX designer reviewing these webpage screenshots. Analyze them thoroughly and provide feedback in the following checkbox format. Each issue should be a specific, actionable checkbox item with measurements where applicable.
 
-### 1. **Layout & Spacing**
-* Check whether spacing between sections, text blocks, and elements is consistent.
-* Identify areas with overcrowding or excessive empty space.
-* Comment on alignment issues (e.g., buttons not lining up, misaligned text).
+## Visual & UI/UX Analysis Report
 
-### 2. **Visual Hierarchy**
-* Is there a clear structure guiding the user's attention (headings, subheadings, call-to-actions)?
-* Are important elements (like CTAs) easily noticeable?
-* Are typography choices (font size, weight, style) consistent and logical for hierarchy?
+### 🔴 Critical Issues (Must Fix Immediately)
+*Issues that severely impact usability, accessibility, or brand perception*
 
-### 3. **Color & Contrast**
-* Evaluate color usage: are brand colors used consistently?
-* Check for accessibility contrast issues (text vs. background).
-* Flag any readability problems (e.g., light gray text on white).
+- [ ] [Issue description with specific location and fix, e.g., "Hero CTA button has 1.8:1 contrast ratio - increase to minimum 4.5:1 for WCAG AA compliance"]
+- [ ] [Add more critical issues as checkboxes...]
 
-### 4. **Typography**
-* Check for consistent font families, sizes, and line spacing.
-* Look for text that's too small or too large for readability.
-* Verify whether headings, body text, and captions follow a logical scale.
+### 🟠 High Priority Issues (Fix Soon)
+*Important improvements that significantly enhance user experience*
 
-### 5. **Accessibility**
-* Assess if text, buttons, and links appear accessible (sufficient size, spacing, and visibility).
-* Note missing or unclear indicators (e.g., no visible focus states, poor hover effects).
-* Check if content looks usable for users with vision impairments (contrast, legibility).
+- [ ] [Issue description with measurements, e.g., "Navigation menu items have only 8px padding - increase to 16px for better touch targets"]
+- [ ] [Add more high priority issues as checkboxes...]
 
-### 6. **Navigation & Usability**
-* Look at menus, navigation bars, and links — are they easy to find and use?
-* Identify any confusing placement of navigation or action buttons.
-* Point out if anything important feels hidden or hard to reach.
+### 🟡 Medium Priority Issues (Should Fix)
+*Noticeable problems that affect polish and professionalism*
 
-### 7. **Content Presentation**
-* Is the content (text, images, headings) well-organized and scannable?
-* Are paragraphs too long or too short?
-* Check for consistency in tone and clarity of messaging.
+- [ ] [Issue description, e.g., "Footer links are using 3 different font sizes (12px, 14px, 16px) - standardize to 14px"]
+- [ ] [Add more medium priority issues as checkboxes...]
 
-### 8. **Consistency Across Pages** (if multiple screenshots)
-* Do repeated elements (headers, footers, buttons, forms) look consistent across pages?
-* Are styles (colors, typography, spacing) uniform throughout?
+### 🟢 Low Priority Enhancements (Nice to Have)
+*Minor improvements and optimizations*
 
-### 9. **Responsiveness (Estimate)**
-* Even if it's just a screenshot, consider how the design might behave on smaller screens.
-* Identify potential issues (e.g., elements too close together, text likely to wrap poorly).
+- [ ] [Enhancement suggestion, e.g., "Add subtle hover animation (0.2s ease) to card elements for better interactivity"]
+- [ ] [Add more enhancements as checkboxes...]
 
-### 10. **Suggestions for Improvement**
-* Provide specific recommendations for fixing spacing, typography, accessibility, or layout issues.
-* Be specific and actionable in your feedback. For example, instead of saying "spacing looks off", write "Increase padding between the hero text and button by at least 16px for better readability."
+## Detailed Analysis
 
-Please format your response as a professional markdown report with specific, actionable feedback.`
+### Layout & Spacing
+[Provide specific observations about spacing consistency, alignment, and layout structure]
+
+### Visual Hierarchy
+[Analyze the flow of information and prominence of key elements]
+
+### Color & Contrast
+[Detail any contrast issues with specific ratios and WCAG compliance notes]
+
+### Typography
+[Comment on font choices, sizes, line heights with specific measurements]
+
+### Mobile/Responsive Considerations
+[Note potential issues when viewed on smaller screens based on current design]
+
+### Accessibility Concerns
+[List specific WCAG violations or accessibility improvements needed]
+
+## Quick Wins (Can implement in < 1 hour)
+1. [Specific quick fix with exact CSS values or changes needed]
+2. [Another quick improvement]
+3. [Continue as needed...]
+
+Remember to be specific with measurements (px, rem, %, contrast ratios) and provide CSS values where applicable.`
       });
       
       // Add screenshots - include both desktop and mobile versions for this URL
@@ -1472,10 +1476,19 @@ Please format your response as a professional markdown report with specific, act
       screenshotsToSend.forEach((screenshot, index) => {
         if (screenshot.data) {
           validScreenshotCount++;
+          // Properly format the image for OpenRouter - ensure base64 format is correct
+          let imageData = screenshot.data;
+          
+          // Ensure the data URL has the correct format
+          if (!imageData.startsWith('data:image/')) {
+            console.warn('Screenshot data does not start with data:image/, adding prefix');
+            imageData = `data:image/png;base64,${imageData}`;
+          }
+          
           content.push({
             type: 'image_url',
             image_url: {
-              url: screenshot.data
+              url: imageData
             }
           });
           content.push({
@@ -1585,7 +1598,7 @@ Please format your response as a professional markdown report with specific, act
       // Add technical analysis prompt
       content.push({
         type: 'text',
-        text: `Analyze the technical SEO and on-page optimization data for this specific URL. Here's the collected data:
+        text: `You are an SEO expert analyzing the technical SEO data for this webpage. Review the data and provide actionable recommendations in checkbox format.
 
 ## URL: ${technicalData.url}
 
@@ -1605,55 +1618,75 @@ ${technicalData.seoData.metaTags ? Object.entries(technicalData.seoData.metaTags
 
 **Structured Data:** ${technicalData.seoData.structuredData?.length > 0 ? 'Present' : 'Not found'}
 
-## SEO Issues Found:
+## Current Issues:
 ${technicalData.issues.map(issue => `- [${issue.severity}] ${issue.type}: ${issue.details?.message || JSON.stringify(issue.details).substring(0, 100)}`).join('\n')}
 
 ## Broken Links:
 ${urlResult.issues.filter(i => i.type === 'broken_link').map(link => `- ${link.details?.href || 'Unknown URL'}: "${link.details?.text || 'No text'}"`).join('\n')}
 
-Please provide a comprehensive technical SEO analysis report including:
+---
 
-### 1. **On-Page SEO Assessment**
-* Title tag optimization (length, keywords, uniqueness)
-* Meta description quality (length, call-to-action, keywords)
-* Header tag structure and hierarchy (H1-H6 usage)
-* URL structure and optimization
+## Technical SEO Analysis Report
 
-### 2. **Content Optimization**
-* Keyword density and placement analysis
-* Content structure and readability
-* Internal linking strategy assessment
-* External linking quality
+### 🔴 Critical SEO Issues (Fix Immediately)
+*Issues that prevent search engines from properly crawling/indexing your site*
 
-### 3. **Technical SEO Issues**
-* Broken links impact and fixes needed
-* Canonical URL implementation
-* Structured data (Schema.org) implementation
-* Open Graph and social media tags
+- [ ] [Specific issue, e.g., "Missing H1 tag - add descriptive H1 with primary keyword 'product name'"]
+- [ ] [Another critical issue, e.g., "Title tag is 85 characters (exceeds 60) - shorten to: 'Your New Title Here | Brand'"]
+- [ ] [Add more critical issues as needed...]
 
-### 4. **Search Engine Visibility**
-* Crawlability assessment
-* Indexability factors
-* XML sitemap recommendations
-* Robots.txt suggestions
+### 🟠 High Priority SEO Issues (Fix This Week)
+*Important optimizations that significantly impact search rankings*
 
-### 5. **Performance Impact on SEO**
-* Page load speed implications
-* Core Web Vitals impact
-* Mobile-friendliness for SEO
+- [ ] [Issue with solution, e.g., "Meta description missing - add 150-160 character description with CTA"]
+- [ ] [Another issue, e.g., "No canonical URL set - add <link rel='canonical' href='${technicalData.url}'>"]
+- [ ] [Continue with high priority items...]
 
-### 6. **Recommendations Priority List**
-* Critical fixes (must be done immediately)
-* High priority improvements
-* Medium priority optimizations
-* Nice-to-have enhancements
+### 🟡 Medium Priority Optimizations (Fix This Month)
+*Improvements that enhance SEO performance*
 
-### 7. **Competitive Advantage Opportunities**
-* Quick wins for immediate SEO improvement
-* Long-term strategic recommendations
-* Content gap analysis suggestions
+- [ ] [Optimization task, e.g., "Add schema.org Product markup for better rich snippets"]
+- [ ] [Another task, e.g., "Optimize image alt texts - 5 images missing descriptive alt attributes"]
+- [ ] [Add more medium priority items...]
 
-Please be specific with examples from the data provided and give actionable recommendations with expected impact on search rankings.`
+### 🟢 Low Priority Enhancements (Nice to Have)
+*Minor optimizations for competitive edge*
+
+- [ ] [Enhancement, e.g., "Add breadcrumb schema markup for better SERP appearance"]
+- [ ] [Another enhancement, e.g., "Implement FAQ schema for potential featured snippets"]
+- [ ] [Continue with enhancements...]
+
+## Detailed Technical Analysis
+
+### On-Page SEO Score: [X/100]
+**Title Tag:** [Current length] characters - [Assessment]
+**Meta Description:** [Current length] characters - [Assessment]
+**H1 Usage:** [Number of H1s] - [Assessment]
+**Header Hierarchy:** [Assessment of H1-H6 structure]
+
+### Content Quality Metrics
+**Word Count:** [Approximate based on headers]
+**Internal Links:** ${technicalData.seoData.links?.internal?.length || 0} links
+**External Links:** ${technicalData.seoData.links?.external?.length || 0} links
+**Link Quality:** [Assessment]
+
+### Technical Health
+**Broken Links:** [Number found]
+**Canonical Status:** ${technicalData.seoData.canonical ? 'Set' : 'Missing'}
+**Structured Data:** ${technicalData.seoData.structuredData?.length > 0 ? 'Present' : 'Missing'}
+**Open Graph Tags:** [Assessment]
+
+## Quick SEO Wins (Implement Today)
+1. [Specific quick fix with exact implementation]
+2. [Another quick win with code snippet if applicable]
+3. [Continue with actionable quick wins...]
+
+## Expected Impact
+- **Immediate (1-2 weeks):** [Expected improvements]
+- **Short-term (1-3 months):** [Expected ranking improvements]
+- **Long-term (3-6 months):** [Expected traffic increase]
+
+Remember to be specific with character counts, provide exact meta tag content, and include code snippets where helpful.`
       });
 
       // Make API call to OpenRouter

@@ -129,18 +129,9 @@
         <span class="tab-icon">🔧</span>
         Technical SEO
       </button>
-      <button class="tab" data-tab="issues">
-        <span class="tab-icon">⚠️</span>
-        Issues
-        <span class="tab-badge" id="issuesBadge">0</span>
-      </button>
       <button class="tab" data-tab="screenshots">
         <span class="tab-icon">📸</span>
         Screenshots
-      </button>
-      <button class="tab" data-tab="details">
-        <span class="tab-icon">📊</span>
-        Detailed Results
       </button>
       <button class="tab" data-tab="raw">
         <span class="tab-icon">{ }</span>
@@ -197,32 +188,6 @@
         </div>
       </div>
 
-      <!-- Issues Tab -->
-      <div id="issues" class="tab-pane">
-        <div class="issues-container">
-          <div class="issues-filters">
-            <select id="severityFilter" class="filter-select">
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <select id="typeFilter" class="filter-select">
-              <option value="all">All Types</option>
-              <option value="accessibility">Accessibility</option>
-              <option value="performance">Performance</option>
-              <option value="seo">SEO</option>
-              <option value="broken_link">Broken Links</option>
-              <option value="layout">Layout</option>
-            </select>
-            <input type="text" id="searchFilter" class="filter-search" placeholder="Search issues...">
-          </div>
-          <div id="issuesList" class="issues-list">
-            <!-- Issues will be populated here -->
-          </div>
-        </div>
-      </div>
 
       <!-- Screenshots Tab -->
       <div id="screenshots" class="tab-pane">
@@ -233,14 +198,6 @@
         </div>
       </div>
 
-      <!-- Detailed Results Tab -->
-      <div id="details" class="tab-pane">
-        <div class="details-container">
-          <div class="url-results" id="urlResults">
-            <!-- URL-by-URL results will be populated here -->
-          </div>
-        </div>
-      </div>
 
       <!-- Raw Data Tab -->
       <div id="raw" class="tab-pane">

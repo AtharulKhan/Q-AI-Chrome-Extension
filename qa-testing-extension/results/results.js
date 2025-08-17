@@ -63,18 +63,10 @@ class ResultsPage {
       visualReportContent: document.getElementById('visualReportContent'),
       technicalReportContent: document.getElementById('technicalReportContent'),
       urlTabs: document.getElementById('urlTabs'),
-      issuesList: document.getElementById('issuesList'),
       screenshotsGrid: document.getElementById('screenshotsGrid'),
-      urlResults: document.getElementById('urlResults'),
       rawDataContent: document.getElementById('rawDataContent'),
       
-      // Filters
-      severityFilter: document.getElementById('severityFilter'),
-      typeFilter: document.getElementById('typeFilter'),
-      searchFilter: document.getElementById('searchFilter'),
       
-      // Badges
-      issuesBadge: document.getElementById('issuesBadge'),
       
       // Modal
       modal: document.getElementById('screenshotModal'),
@@ -98,10 +90,6 @@ class ResultsPage {
       tab.addEventListener('click', () => this.switchTab(tab));
     });
     
-    // Filters
-    this.elements.severityFilter?.addEventListener('change', () => this.filterIssues());
-    this.elements.typeFilter?.addEventListener('change', () => this.filterIssues());
-    this.elements.searchFilter?.addEventListener('input', () => this.filterIssues());
     
     // Export actions
     this.elements.exportMarkdown?.addEventListener('click', () => this.exportMarkdown());
@@ -136,9 +124,7 @@ class ResultsPage {
     this.renderOverview();
     this.renderVisualReport();
     this.renderTechnicalReport();
-    this.renderIssues();
     this.renderScreenshots();
-    this.renderDetailedResults();
     this.renderRawData();
   }
   
@@ -200,7 +186,6 @@ class ResultsPage {
     this.renderOverview();
     this.renderVisualReport();
     this.renderTechnicalReport();
-    this.renderIssues();
     this.renderScreenshots();
   }
   
@@ -241,8 +226,6 @@ class ResultsPage {
     const seconds = Math.round((duration || 0) / 1000);
     this.elements.testDuration.textContent = `${seconds}s`;
     
-    // Update issues badge
-    this.elements.issuesBadge.textContent = totalIssues || 0;
   }
 
   renderScores() {
@@ -344,8 +327,11 @@ class ResultsPage {
       return;
     }
     
-    // Render markdown content
-    this.elements.visualReportContent.innerHTML = this.renderMarkdown(visualReport.content || visualReport.report);
+    // Render markdown content with interactive checkboxes
+    this.elements.visualReportContent.innerHTML = this.renderMarkdown(visualReport.content || visualReport.report, 'visual');
+    // Restore checkbox states and bind events
+    this.restoreCheckboxStates();
+    this.bindCheckboxEvents();
   }
 
   renderTechnicalReport() {
@@ -382,12 +368,18 @@ class ResultsPage {
       return;
     }
     
-    // Render markdown content
-    this.elements.technicalReportContent.innerHTML = this.renderMarkdown(technicalReport.content || technicalReport.report);
+    // Render markdown content with interactive checkboxes
+    this.elements.technicalReportContent.innerHTML = this.renderMarkdown(technicalReport.content || technicalReport.report, 'technical');
+    // Restore checkbox states and bind events
+    this.restoreCheckboxStates();
+    this.bindCheckboxEvents();
   }
 
-  renderMarkdown(markdown) {
+  renderMarkdown(markdown, reportType) {
     if (!markdown) return '<p>No content available</p>';
+    
+    // Generate a unique prefix for checkbox IDs based on report type and current URL
+    const checkboxPrefix = `${reportType}_${this.currentUrl || 'all'}`.replace(/[^a-zA-Z0-9]/g, '_');
     
     // Basic markdown to HTML conversion
     let html = markdown
@@ -397,8 +389,8 @@ class ResultsPage {
       .replace(/^# (.*$)/gim, '<h1>$1</h1>')
       // Bold
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // Italic
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Italic (but not list items)
+      .replace(/(?<!^- \[[ x]\] )\*([^*]+?)\*/g, '<em>$1</em>')
       // Links
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
       // Code blocks
@@ -407,8 +399,8 @@ class ResultsPage {
       .replace(/`(.+?)`/g, '<code>$1</code>')
       // Line breaks
       .replace(/\n\n/g, '</p><p>')
-      // Lists
-      .replace(/^\* (.+)$/gim, '<li>$1</li>')
+      // Regular lists (not checkboxes)
+      .replace(/^(?!- \[[ x]\])^\* (.+)$/gim, '<li>$1</li>')
       .replace(/^\d+\. (.+)$/gim, '<li>$1</li>')
       // Wrap in paragraphs
       .replace(/^(?!<[h|l|p|u])/gim, '<p>')
@@ -421,103 +413,99 @@ class ResultsPage {
       .replace(/(<li>.*<\/li>)\n?(<li>)/g, '$1$2')
       .replace(/(<li>.*<\/li>)(?!<li>)/g, '<ul>$1</ul>');
     
+    // Convert checkbox syntax to interactive checkboxes
+    let checkboxIndex = 0;
+    html = html.replace(/^- \[([ x])\] (.+)$/gim, (match, checked, text) => {
+      checkboxIndex++;
+      const checkboxId = `${checkboxPrefix}_checkbox_${checkboxIndex}`;
+      const isChecked = checked.toLowerCase() === 'x';
+      
+      // Create a hash of the text for consistent ID across reloads
+      const textHash = this.hashString(text);
+      const uniqueId = `${checkboxPrefix}_${textHash}`;
+      
+      return `<div class="checkbox-item">
+        <input type="checkbox" 
+               id="${uniqueId}" 
+               class="report-checkbox" 
+               data-report="${reportType}"
+               data-url="${this.currentUrl || 'all'}"
+               ${isChecked ? 'checked' : ''}>
+        <label for="${uniqueId}" class="checkbox-label">${text}</label>
+      </div>`;
+    });
+    
     // Add emoji support for severity badges
     html = html
-      .replace(/🔴/g, '<span style="color: #dc2626;">●</span>')
-      .replace(/🟠/g, '<span style="color: #ea580c;">●</span>')
-      .replace(/🟡/g, '<span style="color: #d97706;">●</span>')
-      .replace(/🟢/g, '<span style="color: #10b981;">●</span>');
+      .replace(/🔴/g, '<span class="priority-icon critical">●</span>')
+      .replace(/🟠/g, '<span class="priority-icon high">●</span>')
+      .replace(/🟡/g, '<span class="priority-icon medium">●</span>')
+      .replace(/🟢/g, '<span class="priority-icon low">●</span>');
     
     return html;
   }
-
-  renderIssues() {
-    let issues = this.testResults.issues || [];
-    
-    // Filter by current URL if selected
-    if (this.currentUrl) {
-      issues = issues.filter(issue => issue.url === this.currentUrl);
+  
+  // Simple hash function for generating consistent IDs
+  hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
     }
-    
-    // Apply filters
-    let filteredIssues = issues.filter(issue => {
-      if (this.currentFilter.severity !== 'all' && issue.severity !== this.currentFilter.severity) {
-        return false;
-      }
-      if (this.currentFilter.type !== 'all' && issue.type !== this.currentFilter.type) {
-        return false;
-      }
-      if (this.currentFilter.search) {
-        const searchTerm = this.currentFilter.search.toLowerCase();
-        const searchText = `${issue.type} ${issue.message || ''} ${issue.url || ''}`.toLowerCase();
-        if (!searchText.includes(searchTerm)) {
-          return false;
-        }
-      }
-      return true;
-    });
-    
-    if (filteredIssues.length === 0) {
-      this.elements.issuesList.innerHTML = `
-        <div class="no-issues">
-          <p>No issues found matching the current filters.</p>
-        </div>
-      `;
-      return;
-    }
-    
-    const issuesHTML = filteredIssues.map(issue => {
-      // Extract details from the issue object
-      let detailsText = 'No details available';
-      if (issue.message) {
-        detailsText = issue.message;
-      } else if (issue.details) {
-        if (typeof issue.details === 'string') {
-          detailsText = issue.details;
-        } else if (issue.details.message) {
-          detailsText = issue.details.message;
-        } else if (issue.details.type) {
-          detailsText = `${issue.details.type}: ${issue.details.url || issue.details.href || issue.details.text || ''}`;
-        } else {
-          // Try to extract meaningful info from the details object
-          const detailKeys = Object.keys(issue.details);
-          if (detailKeys.length > 0) {
-            detailsText = detailKeys.map(key => {
-              const value = issue.details[key];
-              if (typeof value === 'string' || typeof value === 'number') {
-                return `${key}: ${value}`;
-              }
-              return null;
-            }).filter(Boolean).join(', ');
-          }
-        }
-      }
-      
-      return `
-        <div class="issue-item">
-          <div class="issue-header">
-            <div class="issue-title">${this.formatIssueType(issue.type)}</div>
-            <span class="issue-severity severity-${issue.severity || 'medium'}">${issue.severity || 'medium'}</span>
-          </div>
-          <div class="issue-details">${detailsText}</div>
-          <div class="issue-url">${issue.url || ''}</div>
-        </div>
-      `;
-    }).join('');
-    
-    this.elements.issuesList.innerHTML = issuesHTML;
+    return Math.abs(hash).toString(36);
   }
+  
+  // Bind checkbox events for persistence
+  bindCheckboxEvents() {
+    const checkboxes = document.querySelectorAll('.report-checkbox');
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        this.saveCheckboxState(e.target);
+        this.updateCheckboxLabel(e.target);
+      });
+    });
+  }
+  
+  // Save checkbox state to localStorage
+  saveCheckboxState(checkbox) {
+    const storageKey = 'qaTestCheckboxStates';
+    const states = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    states[checkbox.id] = checkbox.checked;
+    localStorage.setItem(storageKey, JSON.stringify(states));
+  }
+  
+  // Restore checkbox states from localStorage
+  restoreCheckboxStates() {
+    const storageKey = 'qaTestCheckboxStates';
+    const states = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    
+    Object.keys(states).forEach(checkboxId => {
+      const checkbox = document.getElementById(checkboxId);
+      if (checkbox) {
+        checkbox.checked = states[checkboxId];
+        this.updateCheckboxLabel(checkbox);
+      }
+    });
+  }
+  
+  // Update checkbox label style based on state
+  updateCheckboxLabel(checkbox) {
+    const label = document.querySelector(`label[for="${checkbox.id}"]`);
+    if (label) {
+      if (checkbox.checked) {
+        label.classList.add('checked');
+      } else {
+        label.classList.remove('checked');
+      }
+    }
+  }
+
 
   formatIssueType(type) {
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
-  filterIssues() {
-    this.currentFilter.severity = this.elements.severityFilter.value;
-    this.currentFilter.type = this.elements.typeFilter.value;
-    this.currentFilter.search = this.elements.searchFilter.value;
-    this.renderIssues();
-  }
 
   renderScreenshots() {
     let screenshots = this.testResults.screenshots || [];
@@ -616,72 +604,7 @@ class ResultsPage {
     this.elements.modalImage.src = '';
   }
 
-  renderDetailedResults() {
-    const urls = this.testResults.urls || [];
-    
-    const resultsHTML = urls.map((urlResult, index) => {
-      const issueCount = urlResult.issues?.length || 0;
-      const testsRun = Object.keys(urlResult.tests || {}).length;
-      
-      return `
-        <div class="url-result-item" data-index="${index}">
-          <div class="url-result-header">
-            <div class="url-result-title">${urlResult.url}</div>
-            <div class="url-result-stats">
-              <span>${issueCount} issues</span>
-              <span>${testsRun} tests</span>
-            </div>
-          </div>
-          <div class="url-result-content">
-            ${this.renderUrlDetails(urlResult)}
-          </div>
-        </div>
-      `;
-    }).join('');
-    
-    this.elements.urlResults.innerHTML = resultsHTML;
-    
-    // Add click handlers for expandable sections
-    document.querySelectorAll('.url-result-header').forEach(header => {
-      header.addEventListener('click', () => {
-        header.parentElement.classList.toggle('expanded');
-      });
-    });
-  }
 
-  renderUrlDetails(urlResult) {
-    let html = '';
-    
-    // Issues section
-    if (urlResult.issues?.length > 0) {
-      html += `
-        <div class="result-section">
-          <h4>Issues (${urlResult.issues.length})</h4>
-          <ul>
-            ${urlResult.issues.map(issue => 
-              `<li><strong>${this.formatIssueType(issue.type)}</strong>: ${issue.message || 'No details'}</li>`
-            ).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
-    // Test results
-    if (urlResult.tests) {
-      Object.entries(urlResult.tests).forEach(([testName, testResult]) => {
-        if (testResult) {
-          html += `
-            <div class="result-section">
-              <h4>${this.formatIssueType(testName)}</h4>
-              <pre>${JSON.stringify(testResult, null, 2)}</pre>
-            </div>
-          `;
-        }
-      });
-    }
-    
-    return html || '<p>No detailed results available for this URL.</p>';
-  }
 
   renderRawData() {
     this.elements.rawDataContent.textContent = JSON.stringify(this.testResults, null, 2);
