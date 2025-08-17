@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Extension Debug Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(to bottom, #f0f0f0, #ffffff);
+            min-height: 200vh; /* Make page scrollable for full-page screenshot test */
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 0.5em;
+        }
+        
+        .hero {
+            background: #667eea;
+            color: white;
+            padding: 40px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .hero button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .section {
+            margin: 40px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .bad-contrast {
+            color: #e0e0e0; /* Low contrast text */
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .spacing-issue {
+            padding: 2px; /* Too little padding */
+        }
+        
+        .footer {
+            margin-top: 100px;
+            padding: 20px;
+            background: #333;
+            color: white;
+            text-align: center;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Mobile responsive issues for testing */
+        @media (max-width: 768px) {
+            .hero {
+                padding: 10px; /* Different padding on mobile */
+            }
+            
+            h1 {
+                font-size: 1.8em; /* Different sizing */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>QA Extension Test Page</h1>
+    
+    <div class="hero">
+        <h2>Hero Section</h2>
+        <p>This is a hero section with a call-to-action button below.</p>
+        <button>Click Me</button>
+    </div>
+    
+    <div class="section">
+        <h2>Content Section 1</h2>
+        <p>This section has normal content with good contrast and spacing.</p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+    </div>
+    
+    <div class="section">
+        <h2>Accessibility Issues Section</h2>
+        <div class="bad-contrast">
+            This text has poor contrast ratio (should fail WCAG AA).
+        </div>
+        <div class="spacing-issue">
+            This element has insufficient padding for touch targets.
+        </div>
+        <img src="https://via.placeholder.com/400x200" alt="">
+        <p>Image above is missing descriptive alt text.</p>
+    </div>
+    
+    <div class="section">
+        <h2>Layout Issues</h2>
+        <div style="display: flex; gap: 5px;">
+            <button style="padding: 4px;">Too Small</button>
+            <button style="padding: 8px;">Still Small</button>
+            <button style="padding: 16px;">Good Size</button>
+        </div>
+        <p style="font-size: 10px;">This text is too small for comfortable reading.</p>
+        <p style="font-size: 14px;">This text size is better.</p>
+        <p style="font-size: 24px;">This might be too large for body text.</p>
+    </div>
+    
+    <div class="section">
+        <h2>SEO Test Content</h2>
+        <p>This page has multiple H2 tags but only one H1 tag, which is good for SEO.</p>
+        <a href="/broken-link">This is a broken link for testing</a>
+        <br>
+        <a href="https://example.com">External link</a>
+    </div>
+    
+    <div class="section" style="margin-top: 500px;">
+        <h2>Content Below Fold</h2>
+        <p>This content is further down the page to test full-page screenshot capability.</p>
+        <p>The extension should capture all of this in the full-page screenshot.</p>
+    </div>
+    
+    <div class="footer">
+        <p>&copy; 2024 Test Page - Footer Content</p>
+        <p style="font-size: 11px; color: #999;">Small footer text with questionable contrast</p>
+    </div>
+</body>
+</html>

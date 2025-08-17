@@ -117,6 +117,13 @@ class QATestingBackground {
   async startTesting(urls, config) {
     const testId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    console.log('=== STARTING TEST ===');
+    console.log('Test ID:', testId);
+    console.log('URLs to test:', urls);
+    console.log('Test configuration:', config);
+    console.log('Full screenshots enabled:', config.fullScreenshots);
+    console.log('AI Analysis enabled:', config.aiAnalysis);
+    
     try {
       // Store active test info
       await chrome.storage.local.set({
@@ -262,8 +269,10 @@ class TestOrchestrator {
         
         // PHASE 1: Screenshot capture first (if enabled)
         // This runs BEFORE any viewport modifications
+        console.log('Screenshot config check - fullScreenshots:', this.config.fullScreenshots);
         if (this.config.fullScreenshots) {
           console.log('=== PHASE 1: Starting screenshot capture (desktop and mobile in parallel) ===');
+          console.log('URL being captured:', url);
           
           const screenshotPromises = [];
           
@@ -1404,101 +1413,129 @@ class TestOrchestrator {
       // Create multimodal content array for visual analysis
       const content = [];
       
-      // Add visual analysis prompt
+      // Add visual analysis prompt FIRST (as recommended by OpenRouter docs)
       content.push({
         type: 'text',
-        text: `You are a senior UI/UX designer reviewing these webpage screenshots. Analyze them thoroughly and provide feedback in the following checkbox format. Each issue should be a specific, actionable checkbox item with measurements where applicable.
+        text: `You are given full-page screenshots of a webpage (desktop and mobile views). Your task is to carefully analyze the screenshots as if you are reviewing the UI/UX quality and accessibility of the site. Please provide a structured report in checkbox format for actionable tracking.
 
-## Visual & UI/UX Analysis Report
+## Visual & UI/UX Analysis Report for ${url}
 
 ### 🔴 Critical Issues (Must Fix Immediately)
 *Issues that severely impact usability, accessibility, or brand perception*
 
-- [ ] [Issue description with specific location and fix, e.g., "Hero CTA button has 1.8:1 contrast ratio - increase to minimum 4.5:1 for WCAG AA compliance"]
-- [ ] [Add more critical issues as checkboxes...]
+Analyze and list critical issues as checkboxes:
+- [ ] [Specific issue with location and fix]
 
-### 🟠 High Priority Issues (Fix Soon)
+### 🟠 High Priority Issues (Fix This Week)  
 *Important improvements that significantly enhance user experience*
 
-- [ ] [Issue description with measurements, e.g., "Navigation menu items have only 8px padding - increase to 16px for better touch targets"]
-- [ ] [Add more high priority issues as checkboxes...]
+- [ ] [Specific issue with measurements and solution]
 
-### 🟡 Medium Priority Issues (Should Fix)
+### 🟡 Medium Priority Issues (Fix This Month)
 *Noticeable problems that affect polish and professionalism*
 
-- [ ] [Issue description, e.g., "Footer links are using 3 different font sizes (12px, 14px, 16px) - standardize to 14px"]
-- [ ] [Add more medium priority issues as checkboxes...]
+- [ ] [Specific issue with actionable fix]
 
 ### 🟢 Low Priority Enhancements (Nice to Have)
 *Minor improvements and optimizations*
 
-- [ ] [Enhancement suggestion, e.g., "Add subtle hover animation (0.2s ease) to card elements for better interactivity"]
-- [ ] [Add more enhancements as checkboxes...]
+- [ ] [Enhancement suggestion with implementation details]
 
 ## Detailed Analysis
 
-### Layout & Spacing
-[Provide specific observations about spacing consistency, alignment, and layout structure]
+### 1. Layout & Spacing
+* Check whether spacing between sections, text blocks, and elements is consistent.
+* Identify areas with overcrowding or excessive empty space.
+* Comment on alignment issues (e.g., buttons not lining up, misaligned text).
 
-### Visual Hierarchy
-[Analyze the flow of information and prominence of key elements]
+### 2. Visual Hierarchy
+* Is there a clear structure guiding the user's attention (headings, subheadings, call-to-actions)?
+* Are important elements (like CTAs) easily noticeable?
+* Are typography choices (font size, weight, style) consistent and logical for hierarchy?
 
-### Color & Contrast
-[Detail any contrast issues with specific ratios and WCAG compliance notes]
+### 3. Color & Contrast
+* Evaluate color usage: are brand colors used consistently?
+* Check for accessibility contrast issues (text vs. background).
+* Flag any readability problems (e.g., light gray text on white).
 
-### Typography
-[Comment on font choices, sizes, line heights with specific measurements]
+### 4. Typography
+* Check for consistent font families, sizes, and line spacing.
+* Look for text that's too small or too large for readability.
+* Verify whether headings, body text, and captions follow a logical scale.
 
-### Mobile/Responsive Considerations
-[Note potential issues when viewed on smaller screens based on current design]
+### 5. Accessibility
+* Assess if text, buttons, and links appear accessible (sufficient size, spacing, and visibility).
+* Note missing or unclear indicators (e.g., no visible focus states, poor hover effects).
+* Check if content looks usable for users with vision impairments (contrast, legibility).
 
-### Accessibility Concerns
-[List specific WCAG violations or accessibility improvements needed]
+### 6. Navigation & Usability
+* Look at menus, navigation bars, and links — are they easy to find and use?
+* Identify any confusing placement of navigation or action buttons.
+* Point out if anything important feels hidden or hard to reach.
 
-## Quick Wins (Can implement in < 1 hour)
-1. [Specific quick fix with exact CSS values or changes needed]
-2. [Another quick improvement]
-3. [Continue as needed...]
+### 7. Content Presentation
+* Is the content (text, images, headings) well-organized and scannable?
+* Are paragraphs too long or too short?
+* Check for consistency in tone and clarity of messaging.
 
-Remember to be specific with measurements (px, rem, %, contrast ratios) and provide CSS values where applicable.`
+### 8. Desktop vs Mobile Consistency
+* Compare the desktop and mobile screenshots provided.
+* Do repeated elements (headers, footers, buttons, forms) look consistent?
+* Are styles (colors, typography, spacing) uniform across both views?
+
+### 9. Responsiveness Issues
+* Based on the mobile screenshot, identify any responsive design problems.
+* Check for elements that appear broken, overlapping, or poorly adapted.
+
+### 10. Specific Recommendations
+* Be specific and actionable in your feedback.
+* For example, instead of saying "spacing looks off", write "Increase padding between the hero text and button by at least 16px for better readability."
+* Provide exact measurements, color codes, or CSS values where applicable.
+
+Remember to analyze BOTH the desktop and mobile screenshots provided below.`
       });
       
-      // Add screenshots - include both desktop and mobile versions for this URL
-      const desktopScreenshots = urlScreenshots.filter(s => s.type === 'desktop').slice(0, 3);
-      const mobileScreenshots = urlScreenshots.filter(s => s.type === 'mobile').slice(0, 2);
-      const screenshotsToSend = [...desktopScreenshots, ...mobileScreenshots];
+      // Get exactly one desktop and one mobile screenshot for this URL
+      const desktopScreenshot = urlScreenshots.find(s => s.type === 'desktop');
+      const mobileScreenshot = urlScreenshots.find(s => s.type === 'mobile');
       
-      console.log(`Sending ${screenshotsToSend.length} screenshots to AI for ${url} (${desktopScreenshots.length} desktop, ${mobileScreenshots.length} mobile)`);
-      
-      // Check if we have any valid screenshots
       let validScreenshotCount = 0;
       
-      screenshotsToSend.forEach((screenshot, index) => {
-        if (screenshot.data) {
+      // Add desktop screenshot if available (prefer fullPageDataUrl for stitched images)
+      if (desktopScreenshot) {
+        const desktopImageData = desktopScreenshot.fullPageDataUrl || desktopScreenshot.data;
+        if (desktopImageData) {
           validScreenshotCount++;
-          // Properly format the image for OpenRouter - ensure base64 format is correct
-          let imageData = screenshot.data;
-          
-          // Ensure the data URL has the correct format
-          if (!imageData.startsWith('data:image/')) {
-            console.warn('Screenshot data does not start with data:image/, adding prefix');
-            imageData = `data:image/png;base64,${imageData}`;
-          }
-          
+          console.log('Adding desktop screenshot to API request (stitched:', !!desktopScreenshot.fullPageDataUrl, ')');
           content.push({
             type: 'image_url',
             image_url: {
-              url: imageData
+              url: desktopImageData
             }
           });
+        } else {
+          console.warn('Desktop screenshot has no valid image data');
+        }
+      }
+      
+      // Add mobile screenshot if available (prefer fullPageDataUrl for stitched images)
+      if (mobileScreenshot) {
+        const mobileImageData = mobileScreenshot.fullPageDataUrl || mobileScreenshot.data;
+        if (mobileImageData) {
+          validScreenshotCount++;
+          console.log('Adding mobile screenshot to API request (stitched:', !!mobileScreenshot.fullPageDataUrl, ')');
           content.push({
-            type: 'text',
-            text: `${screenshot.type === 'mobile' ? 'Mobile' : 'Desktop'} screenshot ${index + 1} from: ${screenshot.url}`
+            type: 'image_url',
+            image_url: {
+              url: mobileImageData
+            }
           });
         } else {
-          console.warn(`Screenshot ${index} has no data:`, screenshot);
+          console.warn('Mobile screenshot has no valid image data');
         }
-      });
+      }
+      
+      console.log(`Sending ${validScreenshotCount} full-page screenshots to AI for ${url} (desktop: ${!!desktopScreenshot}, mobile: ${!!mobileScreenshot})`);
       
       // If no valid screenshots, return early
       if (validScreenshotCount === 0) {
